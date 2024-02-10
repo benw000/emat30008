@@ -83,8 +83,54 @@ def solve_to(f, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: f
         
         # Take final step with h <= deltat_max
         h_final = t_final - t_vals[-1]
-        x = euler_step(f, x, t, h_final)
+
+        k1 = f(x,t)
+        k2 = f((x+(h_final/2)*k1),(t+h_final/2))
+        k3 = f((x+(h_final/2)*k2),(t+h_final/2))
+        k4 = f((x+h_final*k3),(t+h_final))
+
+        x = x + (h_final/6)*(k1 + 2*k2 + 2*k3 + k4)
+
+        # Update store
         x_store = np.vstack((x_store, x))
+        t_vals = np.append(t_vals, t_final)
+
+        # Combine into one store
+        store = np.concatenate((np.array([t_vals]).T, x_store), axis=1)
+
+        return store
+    
+    elif method=='RK2': # 2nd order Runge-Kutta method
+
+        # Time intervals are constant, use step size h = deltat_max
+        h = deltat_max
+        # Take steps of h until final time value is just less than t_final
+        t_vals = np.arange(t_init, t_final - h/100, h)
+
+        # Initialise x store
+        x_store, x = x_init, x_init
+
+        # Loop through each timestep
+        for t in t_vals[:-1]:
+            # Calculate k values:
+            k1 = f(x,t)
+            k2 = f((x+(h/2)*k1),(t+h/2))
+
+            # Calculate next value
+            x = x + k2*h
+
+            # Update store
+            x_store = np.vstack((x_store, x))
+
+        # Take final step with h <= deltat_max
+        h_final = t_final - t_vals[-1]
+        k1 = f(x,t)
+        k2 = f((x+(h_final/2)*k1),(t+h_final/2))
+        x = x + k2*h_final
+
+        # Update store
+        x_store = np.vstack((x_store, x))
+
         t_vals = np.append(t_vals, t_final)
 
         # Combine into one store
@@ -93,7 +139,7 @@ def solve_to(f, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: f
         return store
 
     else:
-        raise Exception("Not a valid method, please enter 'Euler' or 'RK4' ")
+        raise Exception("Not a valid method, please enter 'Euler','RK4' or 'RK2 ")
 
 
             
