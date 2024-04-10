@@ -9,26 +9,38 @@ from scipy.optimize import root
 from typing import Literal
 
 # Week 14
-def euler_step(f, x: np.ndarray, t: float, h: float) -> np.ndarray:
-    '''
-    ODE is x' = f(x,t)
-    Performs single Euler step with step size h
-    '''
-    x_next = x + h*f(x,t)
+def euler_step(ode_func, x: np.ndarray, t: float, h: float) -> np.ndarray:
+    '''Perform single Euler step from `x` with step size `h` for the ODE `x' = ode_func(x,t)`. '''
+    x_next = x + h*ode_func(x,t)
     return x_next
 
 
-def solve_to(f, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: float, method: str ='Euler') -> np.ndarray:
+def solve_to(ode_func, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: float, method: Literal['Euler', 'RK4', 'RK2'] = 'RK4') -> np.ndarray:
     '''
-    Solves initial value ODE problem x' = f(x,t)
+    Solves ODE IVP problem `x' = f(x,t), x(t_init)=x_init` until time `t_final`.
 
-    Initial condition is x_init at time t_init.
+    Uses either 'Euler' time step method, or 'RK4' 4th order Runge-Kutta method (default)
 
-    Solves until t_final and returns [t, x] with a new row for each new timestep.
+    -----
+    Parameters
+    -----
+    ode_func : function
+        Definition function for the RHS of the ODE `x' = ode_func(x,t)`.
+    x_init : 1-D Numpy array of floats
+        Initial condition for the ODE, `x(t_init)=x_init`.
+    t_init, t_final : floats
+        Initial and final times.
+    deltat_max : float
+        Step size used in numerical timestepping, some final steps may be smaller than this.
+    method : either 'Euler','RK4' or 'RK2', default 'RK4'
+        Specifies the numerical timestepping method used.
 
-    Requires numpy to be imported already.
-    Uses either 'Euler' time step method (default), or 'RK4' 4th order Runge-Kutta method.
+
+
+    
     '''
+    # TODO: could combine some of the code that all timestepping methods share
+
     if deltat_max >= (t_final - t_init):
         raise Exception("Maximum time-step deltat_max >= total time interval")
 
@@ -45,12 +57,12 @@ def solve_to(f, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: f
         # Loop through each timestep
         for t in t_vals[:-1]:
             # Update x value and x store
-            x = euler_step(f, x, t, h)
+            x = euler_step(ode_func, x, t, h)
             x_store = np.vstack((x_store, x))
 
         # Take final step with h <= deltat_max
         h_final = t_final - t_vals[-1]
-        x = euler_step(f, x, t, h_final)
+        x = euler_step(ode_func, x, t, h_final)
         x_store = np.vstack((x_store, x))
         t_vals = np.append(t_vals, t_final)
 
@@ -69,13 +81,14 @@ def solve_to(f, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: f
         # Initialise x store
         x_store, x = x_init, x_init
 
+        # TODO: make below into a rk4_step function
         # Loop through each timestep
         for t in t_vals[:-1]:
             # Calculate k values:
-            k1 = f(x,t)
-            k2 = f((x+(h/2)*k1),(t+h/2))
-            k3 = f((x+(h/2)*k2),(t+h/2))
-            k4 = f((x+h*k3),(t+h))
+            k1 = ode_func(x,t)
+            k2 = ode_func((x+(h/2)*k1),(t+h/2))
+            k3 = ode_func((x+(h/2)*k2),(t+h/2))
+            k4 = ode_func((x+h*k3),(t+h))
 
             # Calculate next value
             x = x + (h/6)*(k1 + 2*k2 + 2*k3 + k4)
@@ -86,10 +99,10 @@ def solve_to(f, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: f
         # Take final step with h <= deltat_max
         h_final = t_final - t_vals[-1]
 
-        k1 = f(x,t)
-        k2 = f((x+(h_final/2)*k1),(t+h_final/2))
-        k3 = f((x+(h_final/2)*k2),(t+h_final/2))
-        k4 = f((x+h_final*k3),(t+h_final))
+        k1 = ode_func(x,t)
+        k2 = ode_func((x+(h_final/2)*k1),(t+h_final/2))
+        k3 = ode_func((x+(h_final/2)*k2),(t+h_final/2))
+        k4 = ode_func((x+h_final*k3),(t+h_final))
 
         x = x + (h_final/6)*(k1 + 2*k2 + 2*k3 + k4)
 
@@ -112,11 +125,12 @@ def solve_to(f, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: f
         # Initialise x store
         x_store, x = x_init, x_init
 
+        # TODO: make below into a rk2 step function
         # Loop through each timestep
         for t in t_vals[:-1]:
             # Calculate k values:
-            k1 = f(x,t)
-            k2 = f((x+(h/2)*k1),(t+h/2))
+            k1 = ode_func(x,t)
+            k2 = ode_func((x+(h/2)*k1),(t+h/2))
 
             # Calculate next value
             x = x + k2*h
@@ -126,8 +140,8 @@ def solve_to(f, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: f
 
         # Take final step with h <= deltat_max
         h_final = t_final - t_vals[-1]
-        k1 = f(x,t)
-        k2 = f((x+(h_final/2)*k1),(t+h_final/2))
+        k1 = ode_func(x,t)
+        k2 = ode_func((x+(h_final/2)*k1),(t+h_final/2))
         x = x + k2*h_final
 
         # Update store
@@ -161,7 +175,7 @@ def limit_cycle_condition(ode_func,
     Parameters
     -----
     ode_func : function
-        Definition function for the RHS of the ODE.
+        Definition function for the RHS of the ODE `x' = ode_func(x,t)`.
     params : 1-D Numpy array of floats
         In format `[T, u0]`. Here `T` (float) is the period of the limit cycle, and `u0`
          (array of floats) is the initial point along the limit cycle.
