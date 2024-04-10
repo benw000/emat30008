@@ -121,6 +121,9 @@ def solve_to(ode_func,
         If `t_init > t_final`.
     Exception
         If the `method` string supplied isn't in the list provided.
+    Exception
+        If the dimension of the initial condition doesn't match the dimension
+        of the output of ode_func.
 
     -----
     See also
@@ -140,6 +143,8 @@ def solve_to(ode_func,
         raise Exception("Input Error: t_init >= t_final.")
     if not (method in ['Euler', 'RK4', 'RK2']):
         raise Exception("Invalid Method: Please choose 'Euler', 'RK4' or 'RK2'.")
+    if len(ode_func(x_init, t_init)) != len(x_init):
+        raise Exception("ODE function and initial condition dimensions do not match.")
 
     # Time intervals are constant, use step size h = deltat_max
     h = deltat_max
@@ -408,8 +413,8 @@ def find_limit_cycle(ode_func,
         best_period, best_point = result.x[0], result.x[1:]
         if print_findings:
             print("A limit cycle was found:")
-            print("Period:", best_period, ",")
-            print("Starting state:", best_point, ".")
+            print("Period:", round(best_period,2), ",")
+            print("Starting state:", [round(i,2) for i in best_point], ".")
         return best_period, best_point
     else:
         if print_findings:
