@@ -301,8 +301,11 @@ def limit_cycle_condition(ode_func,
         u0dot = ode_func(u0, 0)
         phi = u0dot[0]
 
-    # Return sum of squares of G_collection and phi
-    return np.sum(np.square(G_collection))/len(G_collection) + 10*phi**2
+    # Introduce a regularisation constant for the period in our objective function
+    alpha = 1e-5
+
+    # Return sum of squares of G_collection and phi, plus the period times some weight
+    return np.sum(np.square(G_collection))/len(G_collection) + 10*phi**2 + alpha*T
 
 
 
@@ -403,11 +406,19 @@ def find_limit_cycle(ode_func,
     # Pack init_point_guess and init_period_guess into params
     init_params = np.concatenate(([init_period_guess], init_point_guess))
     
-    # Specify lower bound for limit cycle period to be greater than deltatmax
-    bounds = [(2*deltat_max, None)] + [(None,None) for i in range(len(init_point_guess))]
+    # Specify lower bound for limit cycle period to be greater than 10*deltatmax
+    bounds = [(10*deltat_max, None)] + [(None,None) for i in range(len(init_point_guess))]
 
     # Minimize the limit cycle objective function with above bounds and initial guess
     result = minimize(fun=objective_function, x0=init_params, bounds=bounds)
+
+    # If objective function value too large we deem the result a failure
+    # Note if the actual period is larger than 1/alpha in our objective function
+    # then any attempt will be deemed a failure.
+    if objective_function(result.x) > 1:
+        if print_findings:
+            print("No limit cycle was found (failed to converge).")
+        return None, None
 
     if result.success:
         best_period, best_point = result.x[0], result.x[1:]
