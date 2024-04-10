@@ -137,18 +137,18 @@ def solve_to(ode_func, x_init: np.ndarray, t_init: float, t_final: float, deltat
         time_step = lambda x, t, h: euler_step(ode_func, x, t, h)
     elif method=='RK4': # 4th Order Runge-Kutta method
         time_step = lambda x, t, h: rk4_step(ode_func, x, t, h)
-    elif method=='RK2': # 4th Order Runge-Kutta method
+    elif method=='RK2': # 2th Order Runge-Kutta method
         time_step = lambda x, t, h: rk2_step(ode_func, x, t, h)
     
     # Loop through each timestep
     for t in t_vals[:-1]:
         # Update x value and x store
-        x = time_step(ode_func, x, t, h)
+        x = time_step(x, t, h)
         x_store = np.vstack((x_store, x))
 
     # Take final step with h <= deltat_max
     h_final = t_final - t_vals[-1]
-    x = time_step(ode_func, x, t, h_final)
+    x = time_step(x, t, h_final)
     
     x_store = np.vstack((x_store, x))
     t_vals = np.append(t_vals, t_final)
@@ -255,7 +255,7 @@ def limit_cycle_condition(ode_func,
     # Loop over number of loops checked
     for i in range(num_loops_needed):
         # Compute G by calling the solver to solve until time (i+1)*T. Solve with RK4 and deltat_max supplied
-        solution = solve_to(f=ode_func, x_init=u0, t_init=0, 
+        solution = solve_to(ode_func=ode_func, x_init=u0, t_init=0, 
                             t_final=(i+1)*T, deltat_max=deltat_max, method='RK4')
         uT = solution[-1,1:]
         G = u0 - uT
@@ -281,35 +281,56 @@ def find_limit_cycle(ode_func,
                      deltat_max: float = 0.1,
                      print_findings: bool = True):
     '''
+    Searches for a limit cycle of an ODE given an initial guess.
+
     Takes in an ODE definition function, and an initial guess for the period and starting state
     of a limit cycle of that ODE. Uses scipy.optimize.root with limit_cycle_condition to converge
     towards a limit cycle starting with the supplied guess. If convergence is successful, returns
     the period and starting state of the limit cycle it located.
-    --------------
-    INPUTS
-    ode_func: Definition function for the RHS of the ODE at position x, time t
 
-    init_point_guess: 1-D Numpy array, initial guess for the starting state of a limit cycle
+    -----
+    Parameters
+    -----
+    ode_func : function
+        Definition function for the RHS of the ODE `x' = ode_func(x,t)`.
+    init_point_guess : 1-D Numpy array
+        Initial guess for the starting state of a limit cycle.
+    init_period_guess : float
+        Initial guess for the period of the limit cycle.
+    phase_condition : 'constant' or 'derivative' 
+        Specifies the type of phase condition used
+         to select a distinct limit cycle, methods specified below.
+    constant_value : float
+        Value that the first state variable of `u0` should have. Must be supplied
+         if phase_condition == 'constant'.
+    deltat_max : float
+        Step size used by solve_to numerical ODE solver to compute the solution of the  
+         supplied ODE starting from `u0`.
+    print_findings: bool
+        If True then this function prints out whether the convergence was
+         successful, and if so the period and starting state of the limit cycle.
 
-    init_period_guess: Float, initial guess for the period of the limit cycle
+    ------
+    Returns
+    ------
+    If scipy.optimize.root converges:
+        best_period : float
+            The period of the found limit cycle.
+        best_point : 1-D Numpy array of floats
+            The starting state of the found limit cycle.
+    Else:
+        `None`.
 
-    phase_condition: String, either be 'constant' or 'derivative'
+    -----
+    Example
+    -----
+    >>> import numpy as np
+    >>> def shm(x, t):
+            return np.array(([x[1], -x[0]]))
+    >>> find_limit_cycle(shm, np.array(([5,0.1])), 3, 2)
 
-    constant_value: Float value that the first state variable should start from. Must be supplied
-    if phase_condition == 'constant'
-
-    deltat_max: Float value step size used by solve_to solver to compute the solution after time T
-
-    print_findings: Boolean value, if True then this function prints out if the convergence was
-    successful, and if so the period and starting state of the limit cycle
-
-    RETURNS
-    if convergence:
-        best_period: float, the period of the found limit cycle
-        best_point: float, the starting state of the found limit cycle
-    else:
-        None
     '''
+
     # Establish lambda function for use with scipy.optimize.root, means we only vary params
     specific_condition = lambda params: limit_cycle_condition(ode_func=ode_func,
                                                               num_loops_needed=num_loops_needed,
