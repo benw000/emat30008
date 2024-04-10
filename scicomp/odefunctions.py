@@ -35,14 +35,75 @@ def solve_to(ode_func, x_init: np.ndarray, t_init: float, t_final: float, deltat
     method : either 'Euler','RK4' or 'RK2', default 'RK4'
         Specifies the numerical timestepping method used.
 
+    ------
+    Returns
+    ------
+    2-D Numpy array
+        Full timeseries solution of ODE from t_init to t_final.
+        Columns `[t, x1, x2, ... ,xn]`, with each row containing the time value after a timestep
+        and the values of each state variable in `x=[x1, x2, ... ,xn]`.
 
+    -----
+    Example
+    -----
+    >>> import numpy as np
+    >>> def shm(x, t):
+            return np.array(([x[1], -x[0]]))
+    >>> solve_to(shm, np.array(([5,0])), 0, 5, 0.01, 'RK4')
+    array([[ 0.        ,  5.        ,  0.        ],
+       [ 0.01      ,  4.99975   , -0.04999917],
+       [ 0.02      ,  4.99900003, -0.09999333],
+       ...,
+       [ 4.98      ,  1.32214124,  4.82202681],
+       [ 4.99      ,  1.3702946 ,  4.80856452],
+       [ 5.        ,  1.41831093,  4.79462137]])
 
+    -----
+    Notes
+    -----
+    The different methods timestep in the following ways from `x` at time `t` to
+    `x_next` with a timestep h <= deltat_max:
     
+    Euler timestep 'Euler' : 
+        `x_next = x + h * ode_func(x,t)`.
+
+    Fourth Order Runge-Kutta 'RK4' :
+        `x_next = x + (h/6) * (k1 + 2k2 + 2k3 + k4)`,
+
+        where `k1 = ode_func(x,t)`, `k2 = ode_func((x+(h/2)*k1),(t+h/2))`,
+         `k3 = ode_func((x+(h/2)*k2),(t+h/2))`, `k4 = ode_func((x+h*k3),(t+h))`.
+
+    Second Order Runge-Kutta 'RK2' :
+        `x_next = x + h*k2`,
+
+        where `k1 = ode_func(x,t)`, `k2 = ode_func((x+(h/2)*k1),(t+h/2))`.
+
+    -----
+    Raises
+    -----
+    Exception
+        If the timestep size `deltat_max` is larger than the total time interval `t_final-t_init`.
+    Exception
+        If `t_init > t_final`.
+    Exception
+        If the `method` string supplied isn't in the list provided.
+
+    -----
+    See also
+    -----
+    euler_step
+        Performs a single euler timestep
+    limit_cycle_condition
+        Uses this function to search for limit cycle solutions of an ODE
+
     '''
     # TODO: could combine some of the code that all timestepping methods share
 
     if deltat_max >= (t_final - t_init):
-        raise Exception("Maximum time-step deltat_max >= total time interval")
+        raise Exception("Input Error: Maximum time-step deltat_max >= total time interval.")
+    
+    if t_init >= t_final:
+        raise Exception("Input Error: t_init >= t_final.")
 
     if method=='Euler': # Euler time-step method
 
