@@ -5,7 +5,7 @@
 
 # IMPORTS
 import numpy as np
-from scipy.optimize import root
+from scipy.optimize import minimize
 from typing import Literal
 
 # Week 14
@@ -165,11 +165,11 @@ def limit_cycle_condition(ode_func,
                           num_loops_needed: int = 10,
                           phase_condition: Literal['constant', 'derivative']='derivative',
                           constant_value: float = None,
-                          deltat_max: float = 0.1):
+                          deltat_max: float = 0.01):
     ''' 
-    Computes the pair `G(u0,T), phi(u0)` used to search for limit cycle solutions of ODEs.
+    Computes the value of an objective function used to search for limit cycle solutions of ODEs.
 
-    A limit cycle will have initial state `u0` and period `T` such that this function returns zeros.
+    A limit cycle will have initial state `u0` and period `T` such that this function returns zero.
 
     -----
     Parameters
@@ -195,9 +195,8 @@ def limit_cycle_condition(ode_func,
     ------
     Returns
     ------
-    1-D Numpy array 
-        `[G, phi]`, where the length of `G` is the number of state variables in the 
-         ODE function, `phi` is a single float.
+    float
+        Value of the objective function `f = G_collection^2 + phi^2` (to be minimized).
     
     -----
     Example
@@ -216,7 +215,8 @@ def limit_cycle_condition(ode_func,
     ------
     G is the element-wise difference between our starting point u0 and the end of its trajectory
     after time T, uT. When G is zero this means the solution has returned to its starting point
-    u0 after time T, and our solution is thus periodic.
+    u0 after time T, and our solution is thus periodic. We compute G for a range of num_loops_needed
+    many final times T, 2T,..., and collect them into G_collection
 
     phi is the phase condition, used to set the phase and thus choose a periodic orbit from the
     family of orbits generated when G=0. 
@@ -270,7 +270,8 @@ def limit_cycle_condition(ode_func,
         u0dot = ode_func(u0, 0)
         phi = u0dot[0]
 
-    return np.append(G_collection,[phi])
+    # Return sum of squares of G_collection and phi
+    return np.sum(np.square(G_collection)) + phi**2
 
 def find_limit_cycle(ode_func, 
                      init_point_guess: np.ndarray,
@@ -278,7 +279,7 @@ def find_limit_cycle(ode_func,
                      num_loops_needed: int = 1,
                      phase_condition: Literal['constant', 'derivative']='derivative',
                      constant_value: float = None,
-                     deltat_max: float = 0.1,
+                     deltat_max: float = 0.01,
                      print_findings: bool = True):
     '''
     Searches for a limit cycle of an ODE given an initial guess.
@@ -332,7 +333,7 @@ def find_limit_cycle(ode_func,
     '''
 
     # Establish lambda function for use with scipy.optimize.root, means we only vary params
-    specific_condition = lambda params: limit_cycle_condition(ode_func=ode_func,
+    objective_function = lambda params: limit_cycle_condition(ode_func=ode_func,
                                                               num_loops_needed=num_loops_needed,
                                                               params = params,
                                                               phase_condition=phase_condition,
@@ -342,8 +343,12 @@ def find_limit_cycle(ode_func,
 
     # Pack init_point_guess and init_period_guess into params
     init_params = np.concatenate(([init_period_guess], init_point_guess))
+    
+    # Specify lower bound for limit cycle period to be greater than deltatmax
+    bounds = [(2*deltat_max, None)] + [None for i in range(len(init_point_guess))]
 
-    result = root(specific_condition, init_params, method='lm')
+    # Minimize the limit cycle objective function with above bounds and initial guess
+    result = minimize(fun=objective_function, x0=init_params, bounds=bounds)
 
     if result.success:
         best_period, best_point = result.x[0], result.x[1:]
