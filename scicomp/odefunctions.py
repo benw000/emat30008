@@ -9,12 +9,18 @@ from scipy.optimize import minimize
 from typing import Literal
 
 # Week 14
-def euler_step(ode_func, x: np.ndarray, t: float, h: float) -> np.ndarray:
+def euler_step(ode_func,
+               x: np.ndarray, 
+               t: float, 
+               h: float) -> np.ndarray:
     '''Perform single Euler step from `x` with step size `h` for the ODE `x' = ode_func(x,t)`. '''
     x_next = x + h*ode_func(x,t)
     return x_next
 
-def rk4_step(ode_func, x: np.ndarray, t: float, h: float) -> np.ndarray:
+def rk4_step(ode_func, 
+             x: np.ndarray, 
+             t: float, 
+             h: float) -> np.ndarray:
     '''Perform single RK4 step from `x` with step size `h` for the ODE `x' = ode_func(x,t)`. '''
     k1 = ode_func(x,t)
     k2 = ode_func((x+(h/2)*k1),(t+h/2))
@@ -24,7 +30,10 @@ def rk4_step(ode_func, x: np.ndarray, t: float, h: float) -> np.ndarray:
     x_next = x + (h/6)*(k1 + 2*k2 + 2*k3 + k4)
     return x_next
 
-def rk2_step(ode_func, x: np.ndarray, t: float, h: float) -> np.ndarray:
+def rk2_step(ode_func, 
+             x: np.ndarray, 
+             t: float, 
+             h: float) -> np.ndarray:
     '''Perform single RK2 step from `x` with step size `h` for the ODE `x' = ode_func(x,t)`. '''
     k1 = ode_func(x,t)
     k2 = ode_func((x+(h/2)*k1),(t+h/2))
@@ -33,7 +42,12 @@ def rk2_step(ode_func, x: np.ndarray, t: float, h: float) -> np.ndarray:
     return x_next
 
 
-def solve_to(ode_func, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: float, method: Literal['Euler', 'RK4', 'RK2'] = 'RK4') -> np.ndarray:
+def solve_to(ode_func, 
+             x_init: np.ndarray,
+             t_init: float, 
+             t_final: float, 
+             deltat_max: float, 
+             method: Literal['Euler', 'RK4', 'RK2'] = 'RK4') -> np.ndarray:
     '''
     Solves ODE IVP problem `x' = f(x,t), x(t_init)=x_init` until time `t_final`.
 
@@ -100,6 +114,8 @@ def solve_to(ode_func, x_init: np.ndarray, t_init: float, t_final: float, deltat
     Raises
     -----
     Exception
+        If deltat_max <= 0.
+    Exception
         If the timestep size `deltat_max` is larger than the total time interval `t_final-t_init`.
     Exception
         If `t_init > t_final`.
@@ -115,12 +131,13 @@ def solve_to(ode_func, x_init: np.ndarray, t_init: float, t_final: float, deltat
         Uses this function to search for limit cycle solutions of an ODE.
 
     '''
+    # Error messages
+    if deltat_max <= 0:
+        raise Exception("Input Error: Please specify a positive step size.")
     if deltat_max >= (t_final - t_init):
         raise Exception("Input Error: Maximum time-step deltat_max >= total time interval.")
-    
     if t_init >= t_final:
         raise Exception("Input Error: t_init >= t_final.")
-
     if not (method in ['Euler', 'RK4', 'RK2']):
         raise Exception("Invalid Method: Please choose 'Euler', 'RK4' or 'RK2'.")
 
@@ -196,7 +213,7 @@ def limit_cycle_condition(ode_func,
     Returns
     ------
     float
-        Value of the objective function `f = G_collection^2 + phi^2` (to be minimized).
+        Value of the objective function `f = (G_collection^2)/size(G_collection) + phi^2` (to be minimized).
     
     -----
     Example
@@ -232,6 +249,10 @@ def limit_cycle_condition(ode_func,
     Raises
     -----
     Exception
+        If num_loops_needed < 1.
+    Exception
+        If phase_condition != 'constant' or 'derivative'.
+    Exception
         if phase_condition == 'constant' but no constant value is supplied.
 
     -----
@@ -242,8 +263,13 @@ def limit_cycle_condition(ode_func,
          root of limit_cycle_condition.
 
     '''
+    # Error Messages
+    if num_loops_needed < 1:
+        raise Exception("Please specify a positive number of loops needed.")
+    if not (phase_condition in ['constant', 'derivative']):
+        raise Exception("Input Error: Please supply a valid phase condition.")
     if phase_condition == 'constant' and constant_value == None:
-        raise Exception("Error: Please supply a starting value that the first state variable must attain")
+        raise Exception("Input Error: Please supply a starting value that the first state variable must attain.")
 
     # Extract T, u0 from params
     T, u0 = params[0], params[1:]
@@ -271,7 +297,9 @@ def limit_cycle_condition(ode_func,
         phi = u0dot[0]
 
     # Return sum of squares of G_collection and phi
-    return np.sum(np.square(G_collection)) + phi**2
+    return np.sum(np.square(G_collection))/len(G_collection) + 10*phi**2
+
+
 
 def find_limit_cycle(ode_func, 
                      init_point_guess: np.ndarray,
@@ -328,10 +356,36 @@ def find_limit_cycle(ode_func,
     >>> import numpy as np
     >>> def shm(x, t):
             return np.array(([x[1], -x[0]]))
-    >>> find_limit_cycle(shm, np.array(([5,0.1])), 3, 2)
+    >>> find_limit_cycle(shm, np.array(([5,1])), 10, 1, 'constant', 4)
+    A limit cycle was found:
+    Period: 12.566370606193304 ,
+    Starting state: [4.00000009 0.44653776] .
 
+    (12.566370606193304, array([4.00000009, 0.44653776]))
+
+    -----
+    Notes
+    -----
+    We minimize the objective function specified in limit_cycle_condition, and specify bounds
+    so that the solver doesn't try periods that are lower than deltat_max.
+
+    -----
+    Raises
+    -----
+    Exception
+        If init_period_guess <= deltat_max.
+
+    -----
+    See also
+    -----
+    limit_cycle_condition
+        Describes the objective function we minimize to find limit cycles.
+    
     '''
-
+    # Error Messages
+    if init_period_guess <= deltat_max:
+        raise Exception("Initial period guess is less than step size.")
+    
     # Establish lambda function for use with scipy.optimize.root, means we only vary params
     objective_function = lambda params: limit_cycle_condition(ode_func=ode_func,
                                                               num_loops_needed=num_loops_needed,
@@ -345,7 +399,7 @@ def find_limit_cycle(ode_func,
     init_params = np.concatenate(([init_period_guess], init_point_guess))
     
     # Specify lower bound for limit cycle period to be greater than deltatmax
-    bounds = [(2*deltat_max, None)] + [None for i in range(len(init_point_guess))]
+    bounds = [(2*deltat_max, None)] + [(None,None) for i in range(len(init_point_guess))]
 
     # Minimize the limit cycle objective function with above bounds and initial guess
     result = minimize(fun=objective_function, x0=init_params, bounds=bounds)
