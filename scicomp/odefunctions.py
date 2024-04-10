@@ -14,6 +14,24 @@ def euler_step(ode_func, x: np.ndarray, t: float, h: float) -> np.ndarray:
     x_next = x + h*ode_func(x,t)
     return x_next
 
+def rk4_step(ode_func, x: np.ndarray, t: float, h: float) -> np.ndarray:
+    '''Perform single RK4 step from `x` with step size `h` for the ODE `x' = ode_func(x,t)`. '''
+    k1 = ode_func(x,t)
+    k2 = ode_func((x+(h/2)*k1),(t+h/2))
+    k3 = ode_func((x+(h/2)*k2),(t+h/2))
+    k4 = ode_func((x+h*k3),(t+h))
+
+    x_next = x + (h/6)*(k1 + 2*k2 + 2*k3 + k4)
+    return x_next
+
+def rk2_step(ode_func, x: np.ndarray, t: float, h: float) -> np.ndarray:
+    '''Perform single RK2 step from `x` with step size `h` for the ODE `x' = ode_func(x,t)`. '''
+    k1 = ode_func(x,t)
+    k2 = ode_func((x+(h/2)*k1),(t+h/2))
+
+    x_next = x + h*k2
+    return x_next
+
 
 def solve_to(ode_func, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: float, method: Literal['Euler', 'RK4', 'RK2'] = 'RK4') -> np.ndarray:
     '''
@@ -91,134 +109,55 @@ def solve_to(ode_func, x_init: np.ndarray, t_init: float, t_final: float, deltat
     -----
     See also
     -----
-    euler_step
-        Performs a single euler timestep
+    euler_step, rk4_step, rk2_step
+        Performs a single timestep for each method.
     limit_cycle_condition
-        Uses this function to search for limit cycle solutions of an ODE
+        Uses this function to search for limit cycle solutions of an ODE.
 
     '''
-    # TODO: could combine some of the code that all timestepping methods share
-
     if deltat_max >= (t_final - t_init):
         raise Exception("Input Error: Maximum time-step deltat_max >= total time interval.")
     
     if t_init >= t_final:
         raise Exception("Input Error: t_init >= t_final.")
 
+    if not (method in ['Euler', 'RK4', 'RK2']):
+        raise Exception("Invalid Method: Please choose 'Euler', 'RK4' or 'RK2'.")
+
+    # Time intervals are constant, use step size h = deltat_max
+    h = deltat_max
+    # Take steps of h until final time value is just less than t_final
+    t_vals = np.arange(t_init, t_final - h/100, h)
+
+    # Initialise x store
+    x_store, x = x_init, x_init
+
+    # Choose timestepping method as lambda function
     if method=='Euler': # Euler time-step method
-
-        # Time intervals are constant, use step size h = deltat_max
-        h = deltat_max
-        # Take steps of h until final time value is just less than t_final
-        t_vals = np.arange(t_init, t_final - h/100, h)
-
-        # Initialise x store
-        x_store, x = x_init, x_init
-
-        # Loop through each timestep
-        for t in t_vals[:-1]:
-            # Update x value and x store
-            x = euler_step(ode_func, x, t, h)
-            x_store = np.vstack((x_store, x))
-
-        # Take final step with h <= deltat_max
-        h_final = t_final - t_vals[-1]
-        x = euler_step(ode_func, x, t, h_final)
-        x_store = np.vstack((x_store, x))
-        t_vals = np.append(t_vals, t_final)
-
-        # Combine into one store
-        store = np.concatenate((np.array([t_vals]).T, x_store), axis=1)
-
-        return store
+        time_step = lambda x, t, h: euler_step(ode_func, x, t, h)
+    elif method=='RK4': # 4th Order Runge-Kutta method
+        time_step = lambda x, t, h: rk4_step(ode_func, x, t, h)
+    elif method=='RK2': # 4th Order Runge-Kutta method
+        time_step = lambda x, t, h: rk2_step(ode_func, x, t, h)
     
-    elif method=='RK4': # 4th order Runge-Kutta method
-
-        # Time intervals are constant, use step size h = deltat_max
-        h = deltat_max
-        # Take steps of h until final time value is just less than t_final
-        t_vals = np.arange(t_init, t_final - h/100, h)
-
-        # Initialise x store
-        x_store, x = x_init, x_init
-
-        # TODO: make below into a rk4_step function
-        # Loop through each timestep
-        for t in t_vals[:-1]:
-            # Calculate k values:
-            k1 = ode_func(x,t)
-            k2 = ode_func((x+(h/2)*k1),(t+h/2))
-            k3 = ode_func((x+(h/2)*k2),(t+h/2))
-            k4 = ode_func((x+h*k3),(t+h))
-
-            # Calculate next value
-            x = x + (h/6)*(k1 + 2*k2 + 2*k3 + k4)
-
-            # Update store
-            x_store = np.vstack((x_store, x))
-        
-        # Take final step with h <= deltat_max
-        h_final = t_final - t_vals[-1]
-
-        k1 = ode_func(x,t)
-        k2 = ode_func((x+(h_final/2)*k1),(t+h_final/2))
-        k3 = ode_func((x+(h_final/2)*k2),(t+h_final/2))
-        k4 = ode_func((x+h_final*k3),(t+h_final))
-
-        x = x + (h_final/6)*(k1 + 2*k2 + 2*k3 + k4)
-
-        # Update store
+    # Loop through each timestep
+    for t in t_vals[:-1]:
+        # Update x value and x store
+        x = time_step(ode_func, x, t, h)
         x_store = np.vstack((x_store, x))
-        t_vals = np.append(t_vals, t_final)
 
-        # Combine into one store
-        store = np.concatenate((np.array([t_vals]).T, x_store), axis=1)
-
-        return store
+    # Take final step with h <= deltat_max
+    h_final = t_final - t_vals[-1]
+    x = time_step(ode_func, x, t, h_final)
     
-    elif method=='RK2': # 2nd order Runge-Kutta method
+    x_store = np.vstack((x_store, x))
+    t_vals = np.append(t_vals, t_final)
 
-        # Time intervals are constant, use step size h = deltat_max
-        h = deltat_max
-        # Take steps of h until final time value is just less than t_final
-        t_vals = np.arange(t_init, t_final - h/100, h)
+    # Combine into one store
+    store = np.concatenate((np.array([t_vals]).T, x_store), axis=1)
 
-        # Initialise x store
-        x_store, x = x_init, x_init
-
-        # TODO: make below into a rk2 step function
-        # Loop through each timestep
-        for t in t_vals[:-1]:
-            # Calculate k values:
-            k1 = ode_func(x,t)
-            k2 = ode_func((x+(h/2)*k1),(t+h/2))
-
-            # Calculate next value
-            x = x + k2*h
-
-            # Update store
-            x_store = np.vstack((x_store, x))
-
-        # Take final step with h <= deltat_max
-        h_final = t_final - t_vals[-1]
-        k1 = ode_func(x,t)
-        k2 = ode_func((x+(h_final/2)*k1),(t+h_final/2))
-        x = x + k2*h_final
-
-        # Update store
-        x_store = np.vstack((x_store, x))
-
-        t_vals = np.append(t_vals, t_final)
-
-        # Combine into one store
-        store = np.concatenate((np.array([t_vals]).T, x_store), axis=1)
-
-        return store
-
-    else:
-        raise Exception("Not a valid method, please enter 'Euler','RK4' or 'RK2 ")
-
-
+    return store
+    
 # Week 15
 
 def limit_cycle_condition(ode_func,
