@@ -433,4 +433,155 @@ def find_limit_cycle(ode_func,
         return None, None
             
 
+# Week 19
+def finite_diff_bvp_solver(diffusivity: float,
+                           num_grid_points: int,
+                           grid_bounds: list[float],
+                           left_boundary_vals: list[float],
+                           right_boundary_vals: list[float],
+                           left_boundary_type: Literal['Dirichlet', 'Neumann', 'Robin'] = 'Dirichlet', 
+                           right_boundary_type: Literal['Dirichlet', 'Neumann', 'Robin'] = 'Dirichlet',
+                           q_param: float = None,
+                           q_func = None,
+                           q_nonlinear: bool = False,
+                           guess_function = None
+                           ):
+    '''
+    Numerically solves a diffusion equation in 1D with given boundary conditions and source function, using the finite difference method.
+
+    Solves problems of form:
+    D (d^2u/dx2) + q(x,u:mu) = 0
+    between a<=x<=b, where D is the diffusivity (scalar), and q is any source function.
+
+    Boundary conditions (at end x=a WLOG):
+    - Dirichlet: u(a) = alpha
+    - Neumann: du/dx{a} = alpha
+    - Robin: du/dx{a} = alpha + beta*u(a)
+    where alpha is specified.
+
+
+    Insert extensive docstring here
+    boundary types need to be dirichlet, neumann or robin, default dirichlet for both
+    do checks for input types
+    boundary values is a list of 2 with 2 floats? worth unpacking?
+    if robin then check for 2 inputs for each vals
+    check for num grid points bigger than 3
+    maybe change grid bounds to be seperate, and check b>a
+    can we check for q func and guess functions delivering floats?
+    do check on q for taking 3 arguments, x, u and mu, raise error if not
+    '''
+    # Error Messages
+    if num_grid_points < 4:
+        raise Exception("Please use more grid points.")
+    if grid_bounds[0] >= grid_bounds[1]:
+        raise Exception("Grid bounds must be in format [a,b] where a < b.")
+    if left_boundary_type == 'Robin':
+        if len(left_boundary_vals) != 2:
+            raise Exception("Please enter 2 values for left_boundary_vals when using Robin boundary condition.")
+    if right_boundary_type == 'Robin':
+        if len(right_boundary_vals) != 2:
+            raise Exception("Please enter 2 values for right_boundary_vals when using Robin boundary condition.")
+
+
+    D = diffusivity
+    N = num_grid_points
+    a, b = grid_bounds
+
+    # Establish x grid
+    x_vals = np.linspace(a,b,N+1)
+    delta_x = (b-a)/N
+
+    # Calculate number of interior grid points based on boundary conditions
+    N_interior = N-1
+    x_vals_interior = x_vals
+    if left_boundary_type != 'Dirichlet':
+        N_interior += 1  # Include additional ghost point (on left)
+    else:
+        x_vals_interior = x_vals_interior[1:]
+    if right_boundary_type != 'Dirichlet':
+        N_interior += 1  # Include additional ghost point (on right)
+    else:
+        x_vals_interior = x_vals_interior[:-1]
+    
+    # Initialise b_vec and A_matrix
+    b_vec = np.zeros([N_interior])
+    A_matrix = -2*np.eye(N_interior,k=0) + np.eye(N_interior,k=1) + np.eye(N_interior,k=-1)
+    
+    # Treat left boundary
+    if left_boundary_type == 'Dirichlet':
+        b_vec[0] = left_boundary_vals[0]
+    elif left_boundary_type == 'Neumann':
+        b_vec[0] = -left_boundary_vals[0]*2*delta_x
+        A_matrix[0,1] = 2
+    elif left_boundary_type == 'Robin':
+        b_vec[0] = -left_boundary_vals[0]*2*delta_x
+        A_matrix[0,1] = 2
+        A_matrix[0,0] = -2*(1+delta_x*left_boundary_vals[1])
+
+    # Treat right boundary
+    if right_boundary_type == 'Dirichlet':
+        b_vec[-1] = right_boundary_vals[0]
+    elif right_boundary_type == 'Neumann':
+        b_vec[-1] = right_boundary_vals[0]*2*delta_x
+        A_matrix[-1,-2] = 2
+    elif right_boundary_type == 'Robin':
+        b_vec[-1] = right_boundary_vals[0]*2*delta_x
+        A_matrix[-1,-2] = 2
+        A_matrix[-1,-1] = -2*(1+delta_x*right_boundary_vals[1])
+
+    # If no source term q then call linalg to solve
+    if q_func == None:
+        u_interior = np.linalg.solve(A_matrix, -b_vec)
+
+    # If there is a source term q, then split by linear or nonlinear
+    elif not q_nonlinear:
+        # q(x,u:mu) = q(x:mu) so calculate fixed values
+        q_vals_interior = q_func(x=x_vals_interior, u=None, mu = q_param)
+
+        # Solve with linalg solve
+        rhs_vec = -b_vec - ((delta_x**2)/D)*q_vals_interior
+        u_interior = np.linalg.solve(A_matrix, rhs_vec)
+
+    elif q_nonlinear:
+        # Define objective function to minimise
+        def objective(u):
+            q_vals_interior = q_func(x=x_vals_interior, u=u, mu= q_param)
+            F = np.matmul(A_matrix, u) + b_vec + ((delta_x**2)/D)*q_vals_interior
+            return F
+        
+        # Establish initial guess solution via a function
+        # If guess solution function isn't supplied then define one
+        if guess_function == None:
+            # If both Dirichlet bounds given:
+            if (left_boundary_type == 'Dirichlet') and (right_boundary_type == 'Dirichlet'):
+                # Establish function connecting both points
+                def guess_function(x):
+                    return left_boundary_vals[0] + ((right_boundary_vals[0]-left_boundary_vals[0])/(b-a))*(x-a)
+            elif left_boundary_type == 'Dirichlet':
+                # Establish function with constant left boundary value
+                def guess_function(x):
+                    return left_boundary_vals[0]*np.ones([len(x)])
+            elif right_boundary_type == ' Dirichlet':
+                # Establish function with constant right boundary value
+                def guess_function(x):
+                    return right_boundary_vals[0]*np.ones([len(x)])
+            else:
+                # Establish function f(x) = 1
+                def guess_function(x):
+                    return np.ones([len(x)])
+        
+        # Calculate guess solution
+        u_guess = guess_function(x_vals_interior)
+
+        # Solve via scipy root with initial guess solution 
+        solution = root(objective, u_guess)
+        u_interior = solution.x
+
+    # Add prescribed boundary points if Dirichlet, u_interior becomes full solution
+    if left_boundary_type == 'Dirichlet':
+        u_interior = np.concatenate(([left_boundary_vals[0]], u_interior))
+    if right_boundary_type == 'Dirichlet':
+        u_interior = np.concatenate((u_interior, [right_boundary_vals[0]]))
+    
+    return u_interior, x_vals    
         
