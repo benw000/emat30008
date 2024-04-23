@@ -434,16 +434,16 @@ def find_limit_cycle(ode_func,
             
 
 # Week 19
-def finite_diff_bvp_solver(diffusivity: float,
-                           num_grid_points: int,
+def finite_diff_bvp_solver(num_grid_points: int,
+                           diffusivity: float,
                            grid_bounds: list[float],
                            left_boundary_vals: list[float],
                            right_boundary_vals: list[float],
                            left_boundary_type: Literal['Dirichlet', 'Neumann', 'Robin'] = 'Dirichlet', 
                            right_boundary_type: Literal['Dirichlet', 'Neumann', 'Robin'] = 'Dirichlet',
-                           q_param: float = None,
                            q_func = None,
                            q_nonlinear: bool = False,
+                           q_param: float = None,
                            guess_function = None
                            ):
     '''
@@ -459,16 +459,79 @@ def finite_diff_bvp_solver(diffusivity: float,
     - Robin: du/dx{a} = alpha + beta*u(a)
     where alpha is specified.
 
+    -----
+    Parameters
+    -----
+    num_grid_points : int
+        The number of spatial x grid points used in the numerical approximation.
+    diffusivity : float
+        The diffusivity constant of the system. Higher means more 'flattening'.
+    grid_bounds : [a,b] where a<b are floats
+        The bounds a<=x<=b of the problem.
+    left_boundary_vals : [alpha, beta] where alpha,beta are floats
+        The constant values used to describe the left boundary condition.
+    right_boundary_vals : [alpha, beta] where alpha,beta are floats
+        The constant values used to describe the left boundary condition.
+    left_boundary_type : 'Dirichlet', 'Neumann', or 'Robin', default 'Dirichlet'
+        The string used to specify the type of boundary condition on the left.
+    right_boundary_type : 'Dirichlet', 'Neumann', or 'Robin', default 'Dirichlet'
+        The string used to specify the type of boundary condition on the right.
+    q_func : function, default None
+        The scalar source term function q(x,u:mu).
+    q_nonlinear : bool, default False
+        True if the function q has dependence on u
+    q_param : float, default None
+        The parameter value mu passed to source function q
+    guess_function : function, default None
+        A function that guesses the solution, used when source term q is nonlinear
 
-    Insert extensive docstring here
-    boundary types need to be dirichlet, neumann or robin, default dirichlet for both
-    do checks for input types
-    boundary values is a list of 2 with 2 floats? worth unpacking?
-    if robin then check for 2 inputs for each vals
-    check for num grid points bigger than 3
-    maybe change grid bounds to be seperate, and check b>a
-    can we check for q func and guess functions delivering floats?
-    do check on q for taking 3 arguments, x, u and mu, raise error if not
+    -----
+    Returns
+    -----
+    u_interior : 1-D array, length num_grid_points
+        The solution to the differential equation.
+    x_vals : 1-D array, length num_grid_points
+        The corresponding x grid points
+    
+    -----
+    Example
+    -----
+    >>> import numpy as np
+    >>> def source_func(x,u,mu):
+                return np.sin(x)
+    >>> solution, xvals = finite_diff_bvp_solver(10,1.5,[0,5],[1],[2],
+                                'Dirichlet','Neumann',source_func)
+    >>> print(xvals)
+    [0.  0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]
+    >>> print(solution)
+    [1. 2.23378385 3.38766345 4.40129788 5.24868315 5.94451884
+    6.54060918 7.11317952 7.74421372 8.50138168 9.42147133]
+
+    -----
+    Notes
+    -----
+    We use a centred finite difference scheme to approximate the second derivative, and
+    we use ghost points for the derivative boundary conditions (Neumann, Robin).
+    We construct tridiagonal matrices A_matrix and associated vectors b_vec,
+    converting the problem into a linear algebra problem to be solved by numpy's linalg package
+    In the case of a nonlinear dependence q(u) we employ root finding instead to find 
+    a solution where linear algebra cannot be used.
+
+    -----
+    Raises
+    -----
+    Exception
+        If the number of grid points are 3 or less (impractical).
+    Exception
+        If a,b in the grid bounds are such that b<=a
+    Exception
+        If the left or right boundary condition is Robin and the 
+         associated values isn't length 2.
+
+    -----
+    See also
+    -----
+    .   
     '''
     # Error Messages
     if num_grid_points < 4:
@@ -481,7 +544,6 @@ def finite_diff_bvp_solver(diffusivity: float,
     if right_boundary_type == 'Robin':
         if len(right_boundary_vals) != 2:
             raise Exception("Please enter 2 values for right_boundary_vals when using Robin boundary condition.")
-
 
     D = diffusivity
     N = num_grid_points
