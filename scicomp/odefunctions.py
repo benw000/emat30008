@@ -585,14 +585,13 @@ def bvp_construct_A_and_b(num_grid_points: int,
 
     return A_matrix, b_vec, left_dirichlet_val, right_dirichlet_val
 
-
 def finite_diff_bvp_solver(num_grid_points: int,
                            diffusivity: float,
                            grid_bounds: list[float],
-                           left_boundary_vals: list[float],
-                           right_boundary_vals: list[float],
-                           left_boundary_type: Literal['Dirichlet', 'Neumann', 'Robin'] = 'Dirichlet', 
-                           right_boundary_type: Literal['Dirichlet', 'Neumann', 'Robin'] = 'Dirichlet',
+                           A_matrix: np.ndarray,
+                           b_vec: np.ndarray,
+                           left_dirichlet_val,
+                           right_dirichlet_val,
                            q_func = None,
                            q_nonlinear: bool = False,
                            q_param: float = None,
@@ -611,6 +610,9 @@ def finite_diff_bvp_solver(num_grid_points: int,
     - Robin: du/dx{a} = alpha + beta*u(a)
     where alpha is specified.
 
+    Boundary conditions are specified via the inputs A_matrix, b_vec and left_dirichlet_val, right_dirichlet_val.
+    These are obtained from the bvp_construct_A_and_b function.
+
     -----
     Parameters
     -----
@@ -620,14 +622,14 @@ def finite_diff_bvp_solver(num_grid_points: int,
         The diffusivity constant of the system. Higher means more 'flattening'.
     grid_bounds : [a,b] where a<b are floats
         The bounds a<=x<=b of the problem.
-    left_boundary_vals : [alpha, beta] where alpha,beta are floats
-        The constant values used to describe the left boundary condition.
-    right_boundary_vals : [alpha, beta] where alpha,beta are floats
-        The constant values used to describe the left boundary condition.
-    left_boundary_type : 'Dirichlet', 'Neumann', or 'Robin', default 'Dirichlet'
-        The string used to specify the type of boundary condition on the left.
-    right_boundary_type : 'Dirichlet', 'Neumann', or 'Robin', default 'Dirichlet'
-        The string used to specify the type of boundary condition on the right.
+    A_matrix : 2-D tridiagonal matrix array
+        The corresponding matrix used to specify the 2nd order diffusion term and boundary values
+    b_matrix : 1-D vector array
+        The corresponding vector used to specify the 2nd order diffusion term and boundary values
+    left_dirichlet_val : float or None
+        Value of the left dirichlet boundary u(a) = alpha, None if not a dirichlet boundary
+    right_dirichlet_val : float or None
+        Value of the right dirichlet boundary u(b) = beta, None if not a dirichlet boundary
     q_func : function, default None
         The scalar source term function q(x,u:mu).
     q_nonlinear : bool, default False
@@ -649,15 +651,17 @@ def finite_diff_bvp_solver(num_grid_points: int,
     Example
     -----
     >>> import numpy as np
+    >>> num_grid_points = 5
+    >>> grid_bounds = [0,5]
+    >>> diffusivity = 2
+    >>> A_matrix, b_vec, left_dirichlet_val, right_dirichlet_val = bvp_construct_A_and_b(num_grid_points, grid_bounds,[1.5],[3],'Dirichlet','Neumann')
     >>> def source_func(x,u,mu):
-                return np.sin(x)
-    >>> solution, xvals = finite_diff_bvp_solver(10,1.5,[0,5],[1],[2],
-                                'Dirichlet','Neumann',source_func)
-    >>> print(xvals)
-    [0.  0.5 1.  1.5 2.  2.5 3.  3.5 4.  4.5 5. ]
+            return np.sin(x)
+    >>> solution, xvals = finite_diff_bvp_solver(num_grid_points, diffusivity,grid_bounds, A_matrix, b_vec, left_dirichlet_val, right_dirichlet_val, source_func)
     >>> print(solution)
-    [1. 2.23378385 3.38766345 4.40129788 5.24868315 5.94451884
-    6.54060918 7.11317952 7.74421372 8.50138168 9.42147133]
+    [ 1.5         4.82781189  7.73488829 10.18731598 12.56918367 15.3294526 ]
+    >>> print(xvals)
+    [0. 1. 2. 3. 4. 5.]
 
     -----
     Notes
@@ -683,20 +687,13 @@ def finite_diff_bvp_solver(num_grid_points: int,
     -----
     See also
     -----
-    .   
+    bvp_construct_A_and_b
+        Constructs A_matrix, b_vec, left_dirichlet_val and right_dirichlet_val used for   
     '''
     # Error Messages
-    if num_grid_points < 4:
-        raise Exception("Please use more grid points.")
     if grid_bounds[0] >= grid_bounds[1]:
         raise Exception("Grid bounds must be in format [a,b] where a < b.")
-    if left_boundary_type == 'Robin':
-        if len(left_boundary_vals) != 2:
-            raise Exception("Please enter 2 values for left_boundary_vals when using Robin boundary condition.")
-    if right_boundary_type == 'Robin':
-        if len(right_boundary_vals) != 2:
-            raise Exception("Please enter 2 values for right_boundary_vals when using Robin boundary condition.")
-
+    
     # Unpack and rename inputs
     D = diffusivity
     N = num_grid_points
@@ -706,44 +703,13 @@ def finite_diff_bvp_solver(num_grid_points: int,
     x_vals = np.linspace(a,b,N+1)
     delta_x = (b-a)/N
 
-    # Calculate number of interior grid points based on boundary conditions
-    N_interior = N-1
+    # Extract interior values
     x_vals_interior = x_vals
-    if left_boundary_type != 'Dirichlet':
-        N_interior += 1  # Include additional ghost point (on left)
-    else:
+    if left_dirichlet_val != None:
         x_vals_interior = x_vals_interior[1:]
-    if right_boundary_type != 'Dirichlet':
-        N_interior += 1  # Include additional ghost point (on right)
-    else:
+    if right_dirichlet_val != None:
         x_vals_interior = x_vals_interior[:-1]
-    
-    # Initialise b_vec and A_matrix
-    b_vec = np.zeros([N_interior])
-    A_matrix = -2*np.eye(N_interior,k=0) + np.eye(N_interior,k=1) + np.eye(N_interior,k=-1)
-    
-    # Treat left boundary
-    if left_boundary_type == 'Dirichlet':
-        b_vec[0] = left_boundary_vals[0]
-    elif left_boundary_type == 'Neumann':
-        b_vec[0] = -left_boundary_vals[0]*2*delta_x
-        A_matrix[0,1] = 2
-    elif left_boundary_type == 'Robin':
-        b_vec[0] = -left_boundary_vals[0]*2*delta_x
-        A_matrix[0,1] = 2
-        A_matrix[0,0] = -2*(1+delta_x*left_boundary_vals[1])
-
-    # Treat right boundary
-    if right_boundary_type == 'Dirichlet':
-        b_vec[-1] = right_boundary_vals[0]
-    elif right_boundary_type == 'Neumann':
-        b_vec[-1] = right_boundary_vals[0]*2*delta_x
-        A_matrix[-1,-2] = 2
-    elif right_boundary_type == 'Robin':
-        b_vec[-1] = right_boundary_vals[0]*2*delta_x
-        A_matrix[-1,-2] = 2
-        A_matrix[-1,-1] = -2*(1+delta_x*right_boundary_vals[1])
-
+        
     # If no source term q then call linalg to solve
     if q_func == None:
         u_interior = np.linalg.solve(A_matrix, -b_vec)
@@ -768,18 +734,21 @@ def finite_diff_bvp_solver(num_grid_points: int,
         # If guess solution function isn't supplied then define one
         if guess_function == None:
             # If both Dirichlet bounds given:
-            if (left_boundary_type == 'Dirichlet') and (right_boundary_type == 'Dirichlet'):
+            if (left_dirichlet_val != None) and (right_dirichlet_val != None):
                 # Establish function connecting both points
                 def guess_function(x):
-                    return left_boundary_vals[0] + ((right_boundary_vals[0]-left_boundary_vals[0])/(b-a))*(x-a)
-            elif left_boundary_type == 'Dirichlet':
+                    return left_dirichlet_val + ((right_dirichlet_val-left_dirichlet_val)/(b-a))*(x-a)
+                
+            elif left_dirichlet_val != None:
                 # Establish function with constant left boundary value
                 def guess_function(x):
-                    return left_boundary_vals[0]*np.ones([len(x)])
-            elif right_boundary_type == ' Dirichlet':
+                    return left_dirichlet_val*np.ones([len(x)])
+                
+            elif right_dirichlet_val != None:
                 # Establish function with constant right boundary value
                 def guess_function(x):
-                    return right_boundary_vals[0]*np.ones([len(x)])
+                    return right_dirichlet_val*np.ones([len(x)])
+                
             else:
                 # Establish function f(x) = 1
                 def guess_function(x):
@@ -793,10 +762,9 @@ def finite_diff_bvp_solver(num_grid_points: int,
         u_interior = solution.x
 
     # Add prescribed boundary points if Dirichlet, u_interior becomes full solution
-    if left_boundary_type == 'Dirichlet':
-        u_interior = np.concatenate(([left_boundary_vals[0]], u_interior))
-    if right_boundary_type == 'Dirichlet':
-        u_interior = np.concatenate((u_interior, [right_boundary_vals[0]]))
+    if left_dirichlet_val != None:
+        u_interior = np.concatenate(([left_dirichlet_val], u_interior))
+    if right_dirichlet_val != None:
+        u_interior = np.concatenate((u_interior, [left_dirichlet_val]))
     
-    return u_interior, x_vals    
-        
+    return u_interior, x_vals
