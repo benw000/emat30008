@@ -433,7 +433,159 @@ def find_limit_cycle(ode_func,
         return None, None
             
 
-# Week 19
+# Week 19,20
+def bvp_construct_A_and_b(num_grid_points: int,
+                          grid_bounds: list[float],
+                          left_boundary_vals: list[float],
+                          right_boundary_vals: list[float],
+                          left_boundary_type: Literal['Dirichlet', 'Neumann', 'Robin'] = 'Dirichlet', 
+                          right_boundary_type: Literal['Dirichlet', 'Neumann', 'Robin'] = 'Dirichlet',
+                          ):
+    '''
+    Prepares the matrix A_matrix and vector b_vector for use in finite difference solving for a BVP diffusion problem.
+    See finite_diff_bvp_solver function.
+    
+    Problems are of form:
+    D (d^2u/dx2) + q(x,u:mu) = 0
+    between a<=x<=b, where D is the diffusivity (scalar), and q is any source function.
+
+    Boundary conditions (at end x=a WLOG):
+    - Dirichlet: u(a) = alpha
+    - Neumann: du/dx{a} = alpha
+    - Robin: du/dx{a} = alpha + beta*u(a)
+    where alpha is specified.
+
+    -----
+    Parameters
+    -----
+    num_grid_points : int
+        The number of spatial x grid points used in the numerical approximation.
+    grid_bounds : [a,b] where a<b are floats
+        The bounds a<=x<=b of the problem.
+    left_boundary_vals : [alpha, beta] where alpha,beta are floats
+        The constant values used to describe the left boundary condition. Beta optional, used for Robin boundary
+    right_boundary_vals : [alpha, beta] where alpha,beta are floats
+        The constant values used to describe the left boundary condition. Beta optional, used for Robin boundary
+    left_boundary_type : 'Dirichlet', 'Neumann', or 'Robin', default 'Dirichlet'
+        The string used to specify the type of boundary condition on the left.
+    right_boundary_type : 'Dirichlet', 'Neumann', or 'Robin', default 'Dirichlet'
+        The string used to specify the type of boundary condition on the right.
+
+    -----
+    Returns
+    -----
+    A_matrix : 2-D tridiagonal matrix array
+        The corresponding matrix used to specify the 2nd order diffusion term and boundary values
+    b_matrix : 1-D vector array
+        The corresponding vector used to specify the 2nd order diffusion term and boundary values
+    left_dirichlet_val : float or None
+        Value of the left dirichlet boundary u(a) = alpha, None if not a dirichlet boundary
+    right_dirichlet_val : float or None
+        Value of the right dirichlet boundary u(b) = beta, None if not a dirichlet boundary
+    
+    -----
+    Example
+    -----
+    >>> A_matrix, b_vec, left_dirichlet_val, right_dirichlet_val = bvp_construct_A_and_b(5,[0,5],[1.5],[3],'Dirichlet','Neumann')
+    >>> print(A_matrix)
+    [[-2.  1.  0.  0.  0.]
+    [ 1. -2.  1.  0.  0.]
+    [ 0.  1. -2.  1.  0.]
+    [ 0.  0.  1. -2.  1.]
+    [ 0.  0.  0.  2. -2.]]
+    >>> print(b_vec)
+    [1.5 0.  0.  0.  6. ]
+    >>> print(left_dirichlet_val)
+    1.5
+    >>> print(right_dirichlet_val)
+    None
+
+    -----
+    Notes
+    -----
+    We use a centred finite difference scheme to approximate the second derivative, and
+    we use ghost points for the derivative boundary conditions (Neumann, Robin).
+    We construct tridiagonal matrices A_matrix and associated vectors b_vec,
+    converting the problem into a linear algebra problem to be solved by numpy's linalg package
+    In the case of a nonlinear dependence q(u) we employ root finding instead to find 
+    a solution where linear algebra cannot be used.
+
+    -----
+    Raises
+    -----
+    Exception
+        If the number of grid points are 3 or less (impractical).
+    Exception
+        If a,b in the grid bounds are such that b<=a
+    Exception
+        If the left or right boundary condition is Robin and the 
+         associated values isn't length 2.
+
+    -----
+    See also
+    -----
+    .   
+    '''
+    if num_grid_points < 4:
+        raise Exception("Please use more grid points.")
+    if grid_bounds[0] >= grid_bounds[1]:
+        raise Exception("Grid bounds must be in format [a,b] where a < b.")
+    if left_boundary_type == 'Robin':
+        if len(left_boundary_vals) != 2:
+            raise Exception("Please enter 2 values for left_boundary_vals when using Robin boundary condition.")
+    if right_boundary_type == 'Robin':
+        if len(right_boundary_vals) != 2:
+            raise Exception("Please enter 2 values for right_boundary_vals when using Robin boundary condition.")
+
+    N = num_grid_points
+    a, b = grid_bounds
+
+    # Establish delta_x
+    delta_x = (b-a)/N
+
+    # Initiate holders for dirichlet boundary conditions
+    left_dirichlet_val, right_dirichlet_val = None, None
+
+    # Calculate number of interior grid points based on boundary conditions
+    N_interior = N-1
+    if left_boundary_type != 'Dirichlet':
+        N_interior += 1  # Include additional ghost point (on left)
+    else:
+        left_dirichlet_val = left_boundary_vals[0]
+    if right_boundary_type != 'Dirichlet':
+        N_interior += 1  # Include additional ghost point (on right)
+    else:
+        right_dirichlet_val = right_boundary_vals[0]
+    
+    # Initialise b_vec and A_matrix
+    b_vec = np.zeros([N_interior])
+    A_matrix = -2*np.eye(N_interior,k=0) + np.eye(N_interior,k=1) + np.eye(N_interior,k=-1)
+
+    # Treat left boundary
+    if left_boundary_type == 'Dirichlet':
+        b_vec[0] = left_boundary_vals[0]
+    elif left_boundary_type == 'Neumann':
+        b_vec[0] = -left_boundary_vals[0]*2*delta_x
+        A_matrix[0,1] = 2
+    elif left_boundary_type == 'Robin':
+        b_vec[0] = -left_boundary_vals[0]*2*delta_x
+        A_matrix[0,1] = 2
+        A_matrix[0,0] = -2*(1+delta_x*left_boundary_vals[1])
+
+    # Treat right boundary
+    if right_boundary_type == 'Dirichlet':
+        b_vec[-1] = right_boundary_vals[0]
+    elif right_boundary_type == 'Neumann':
+        b_vec[-1] = right_boundary_vals[0]*2*delta_x
+        A_matrix[-1,-2] = 2
+    elif right_boundary_type == 'Robin':
+        b_vec[-1] = right_boundary_vals[0]*2*delta_x
+        A_matrix[-1,-2] = 2
+        A_matrix[-1,-1] = -2*(1+delta_x*right_boundary_vals[1])
+
+    return A_matrix, b_vec, left_dirichlet_val, right_dirichlet_val
+
+
 def finite_diff_bvp_solver(num_grid_points: int,
                            diffusivity: float,
                            grid_bounds: list[float],
@@ -545,6 +697,7 @@ def finite_diff_bvp_solver(num_grid_points: int,
         if len(right_boundary_vals) != 2:
             raise Exception("Please enter 2 values for right_boundary_vals when using Robin boundary condition.")
 
+    # Unpack and rename inputs
     D = diffusivity
     N = num_grid_points
     a, b = grid_bounds
