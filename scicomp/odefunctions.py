@@ -10,49 +10,50 @@ from typing import Literal
 
 # Week 14
 def euler_step(ode_func,
+               params: list[float],
                x: np.ndarray, 
-               t: float,
-               params: list[float], 
+               t: float, 
                h: float) -> np.ndarray:
-    '''Perform single Euler step from `x` with step size `h` for the ODE `x' = ode_func(x,t,params)`. '''
-    x_next = x + h*ode_func(x,t,params)
+    '''Perform single Euler step from `x` with step size `h` for the ODE `x' = ode_func(params,x,t)`. '''
+    x_next = x + h*ode_func(params,x,t)
     return x_next
 
 def rk4_step(ode_func, 
+             params: list[float],
              x: np.ndarray, 
-             t: float,
-             params: list[float], 
+             t: float, 
              h: float) -> np.ndarray:
-    '''Perform single RK4 step from `x` with step size `h` for the ODE `x' = ode_func(x,t,params)`. '''
-    k1 = ode_func(x,t,params)
-    k2 = ode_func((x+(h/2)*k1),(t+h/2),params)
-    k3 = ode_func((x+(h/2)*k2),(t+h/2),params)
-    k4 = ode_func((x+h*k3),(t+h),params)
+    '''Perform single RK4 step from `x` with step size `h` for the ODE `x' = ode_func(params,x,t)`. '''
+    k1 = ode_func(params,x,t,)
+    k2 = ode_func(params,(x+(h/2)*k1),(t+h/2))
+    k3 = ode_func(params,(x+(h/2)*k2),(t+h/2))
+    k4 = ode_func(params,(x+h*k3),(t+h))
 
     x_next = x + (h/6)*(k1 + 2*k2 + 2*k3 + k4)
     return x_next
 
 def rk2_step(ode_func, 
+             params: list[float],
              x: np.ndarray, 
              t: float,
-             params: list[float],
              h: float) -> np.ndarray:
-    '''Perform single RK2 step from `x` with step size `h` for the ODE `x' = ode_func(x,t,params)`. '''
-    k1 = ode_func(x,t,params)
-    k2 = ode_func((x+(h/2)*k1),(t+h/2),params)
+    '''Perform single RK2 step from `x` with step size `h` for the ODE `x' = ode_func(params, x,t)`. '''
+    k1 = ode_func(params,x,t)
+    k2 = ode_func(params,(x+(h/2)*k1),(t+h/2))
 
     x_next = x + h*k2
     return x_next
 
 
 def solve_to(ode_func, 
+             params: list[float],
              x_init: np.ndarray,
              t_init: float, 
              t_final: float, 
              deltat_max: float, 
              method: Literal['Euler', 'RK4', 'RK2'] = 'RK4') -> np.ndarray:
     '''
-    Solves ODE IVP problem `x' = f(x,t), x(t_init)=x_init` until time `t_final`.
+    Solves ODE IVP problem `x' = f(params,x,t), x(t_init)=x_init` until time `t_final`.
 
     Uses either 'Euler' time step method, or 'RK4' 4th order Runge-Kutta method (default)
 
@@ -60,7 +61,7 @@ def solve_to(ode_func,
     Parameters
     -----
     ode_func : function
-        Definition function for the RHS of the ODE `x' = ode_func(x,t)`.
+        Definition function for the RHS of the ODE `x' = ode_func(params,x,t)`.
     x_init : 1-D Numpy array of floats
         Initial condition for the ODE, `x(t_init)=x_init`.
     t_init, t_final : floats
@@ -82,9 +83,9 @@ def solve_to(ode_func,
     Example
     -----
     >>> import numpy as np
-    >>> def shm(x, t):
+    >>> def shm(params,x, t):
             return np.array(([x[1], -x[0]]))
-    >>> solve_to(shm, np.array(([5,0])), 0, 5, 0.01, 'RK4')
+    >>> solve_to(shm, None, np.array(([5,0])), 0, 5, 0.01, 'RK4')
     array([[ 0.        ,  5.        ,  0.        ],
        [ 0.01      ,  4.99975   , -0.04999917],
        [ 0.02      ,  4.99900003, -0.09999333],
@@ -100,18 +101,18 @@ def solve_to(ode_func,
     `x_next` with a timestep h <= deltat_max:
     
     Euler timestep 'Euler' : 
-        `x_next = x + h * ode_func(x,t)`.
+        `x_next = x + h * ode_func(params,x,t)`.
 
     Fourth Order Runge-Kutta 'RK4' :
         `x_next = x + (h/6) * (k1 + 2k2 + 2k3 + k4)`,
 
-        where `k1 = ode_func(x,t)`, `k2 = ode_func((x+(h/2)*k1),(t+h/2))`,
-         `k3 = ode_func((x+(h/2)*k2),(t+h/2))`, `k4 = ode_func((x+h*k3),(t+h))`.
+        where `k1 = ode_func(params,x,t)`, `k2 = ode_func(params,(x+(h/2)*k1),(t+h/2))`,
+         `k3 = ode_func(params,(x+(h/2)*k2),(t+h/2))`, `k4 = ode_func(params,(x+h*k3),(t+h))`.
 
     Second Order Runge-Kutta 'RK2' :
         `x_next = x + h*k2`,
 
-        where `k1 = ode_func(x,t)`, `k2 = ode_func((x+(h/2)*k1),(t+h/2))`.
+        where `k1 = ode_func(params,x,t)`, `k2 = ode_func(params,(x+(h/2)*k1),(t+h/2))`.
 
     -----
     Raises
@@ -146,7 +147,7 @@ def solve_to(ode_func,
         raise Exception("Input Error: t_init >= t_final.")
     if not (method in ['Euler', 'RK4', 'RK2']):
         raise Exception("Invalid Method: Please choose 'Euler', 'RK4' or 'RK2'.")
-    if len(ode_func(x_init, t_init)) != len(x_init):
+    if len(ode_func(params,x_init, t_init)) != len(x_init):
         raise Exception("ODE function and initial condition dimensions do not match.")
 
     # Time intervals are constant, use step size h = deltat_max
@@ -159,11 +160,11 @@ def solve_to(ode_func,
 
     # Choose timestepping method as lambda function
     if method=='Euler': # Euler time-step method
-        time_step = lambda x, t, h: euler_step(ode_func, x, t, h)
+        time_step = lambda x, t, h: euler_step(ode_func, params, x, t, h)
     elif method=='RK4': # 4th Order Runge-Kutta method
-        time_step = lambda x, t, h: rk4_step(ode_func, x, t, h)
+        time_step = lambda x, t, h: rk4_step(ode_func, params, x, t, h)
     elif method=='RK2': # 2th Order Runge-Kutta method
-        time_step = lambda x, t, h: rk2_step(ode_func, x, t, h)
+        time_step = lambda x, t, h: rk2_step(ode_func, params, x, t, h)
     
     # Loop through each timestep
     for t in t_vals[:-1]:
