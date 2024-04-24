@@ -254,6 +254,8 @@ def limit_cycle_condition(ode_func,
     -----
     Exception
         if phase_condition == 'constant' but no constant value is supplied.
+    Exception
+        if the period < 2*deltat_max, which will lead to problems for our solver
 
     -----
     See also
@@ -269,6 +271,8 @@ def limit_cycle_condition(ode_func,
     # Extract T, u0 from params
     T, u0 = params[0], params[1:]
 
+    if T < 2*deltat_max:
+        raise Exception("Please choose a different initial period guess, period tested has become smaller than timestep used")
 
     # Establish empty array to hold Gs
     num_variables = len(u0)
