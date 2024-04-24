@@ -180,7 +180,7 @@ def solve_to(ode_func,
 
     return store
     
-# Week 15
+# Week 15,16
 
 def limit_cycle_condition(ode_func,
                           params: np.ndarray, 
@@ -191,7 +191,7 @@ def limit_cycle_condition(ode_func,
     ''' 
     Computes the value of an objective function used to search for limit cycle solutions of ODEs.
 
-    A limit cycle will have initial state `u0` and period `T` such that this function returns zero.
+    A limit cycle will have initial state `u0` and period `T` such that this function is minimized.
 
     -----
     Parameters
@@ -218,7 +218,7 @@ def limit_cycle_condition(ode_func,
     Returns
     ------
     float
-        Value of the objective function `f = (G_collection^2)/size(G_collection) + phi^2` (to be minimized).
+        Value of the objective function `f = (G_collection^2)/size(G_collection) + 10 phi^2 + alpha T` (to be minimized).
     
     -----
     Example
@@ -226,10 +226,9 @@ def limit_cycle_condition(ode_func,
     >>> import numpy as np
     >>> def shm(x, t):
             return np.array(([x[1], -x[0]]))
-    >>> limit_cycle_condition(shm, np.array(([2*np.pi,1,0])), 5)
-    array([ 4.32329707e-07, -5.18133545e-06,  8.67617365e-07, -1.03901950e-05,
-        1.30414748e-06, -1.56132187e-05,  1.74110099e-06, -2.08422900e-05,
-        2.17816753e-06, -2.60732268e-05,  0.00000000e+00])
+    >>> objective = limit_cycle_condition(shm, np.array(([1,3,3])), 10, 'constant', 2)
+    >>> print(objective)
+    30.551415942882745
 
 
     ------
@@ -238,7 +237,7 @@ def limit_cycle_condition(ode_func,
     G is the element-wise difference between our starting point u0 and the end of its trajectory
     after time T, uT. When G is zero this means the solution has returned to its starting point
     u0 after time T, and our solution is thus periodic. We compute G for a range of num_loops_needed
-    many final times T, 2T,..., and collect them into G_collection
+    many final times T, 2T,..., and collect them into G_collection.
 
     phi is the phase condition, used to set the phase and thus choose a periodic orbit from the
     family of orbits generated when G=0. 
@@ -249,6 +248,9 @@ def limit_cycle_condition(ode_func,
     If phase_condition == 'derivative' then we compute the derivative of the first state 
     variable at time t=0. Every limit cycle should contain a point where the first state variable
     has a turning point (or is constant). We set phi = d/dt[u[t=0]]
+
+    We also minimise the period, to avoid period multiples, by including the regularization alpha T
+    in our objective function.
 
     -----
     Raises
