@@ -182,7 +182,7 @@ def solve_to(ode_func,
     
 # Week 15,16
 
-def limit_cycle_condition(ode_func,
+def limit_cycle_condition_min(ode_func,
                           params: np.ndarray, 
                           num_loops_needed: int = 10,
                           phase_condition: Literal['constant', 'derivative']='derivative',
@@ -226,7 +226,7 @@ def limit_cycle_condition(ode_func,
     >>> import numpy as np
     >>> def shm(x, t):
             return np.array(([x[1], -x[0]]))
-    >>> objective = limit_cycle_condition(shm, np.array(([1,3,3])), 10, 'constant', 2)
+    >>> objective = limit_cycle_condition_min(shm, np.array(([1,3,3])), 10, 'constant', 2)
     >>> print(objective)
     30.551415942882745
 
@@ -311,7 +311,7 @@ def limit_cycle_condition(ode_func,
 
 
 
-def find_limit_cycle(ode_func, 
+def find_limit_cycle_min(ode_func, 
                      init_point_guess: np.ndarray,
                      init_period_guess: float,
                      num_loops_needed: int = 1,
@@ -323,7 +323,7 @@ def find_limit_cycle(ode_func,
     Searches for a limit cycle of an ODE given an initial guess.
 
     Takes in an ODE definition function, and an initial guess for the period and starting state
-    of a limit cycle of that ODE. Uses scipy.optimize.root with limit_cycle_condition to converge
+    of a limit cycle of that ODE. Uses scipy.optimize.root with limit_cycle_condition_min to converge
     towards a limit cycle starting with the supplied guess. If convergence is successful, returns
     the period and starting state of the limit cycle it located.
 
@@ -366,7 +366,7 @@ def find_limit_cycle(ode_func,
     >>> import numpy as np
     >>> def shm(x, t):
             return np.array(([x[1], -x[0]]))
-    >>> find_limit_cycle(shm, np.array(([5,1])), 10, 1, 'constant', 4)
+    >>> find_limit_cycle_min(shm, np.array(([5,1])), 10, 1, 'constant', 4)
     A limit cycle was found:
     Period: 12.566370606193304 ,
     Starting state: [4.00000009 0.44653776] .
@@ -376,7 +376,7 @@ def find_limit_cycle(ode_func,
     -----
     Notes
     -----
-    We minimize the objective function specified in limit_cycle_condition, and specify bounds
+    We minimize the objective function specified in limit_cycle_condition_min, and specify bounds
     so that the solver doesn't try periods that are lower than deltat_max.
 
     -----
@@ -388,8 +388,10 @@ def find_limit_cycle(ode_func,
     -----
     See also
     -----
-    limit_cycle_condition
+    limit_cycle_condition_min
         Describes the objective function we minimize to find limit cycles.
+    find_limit_cycle
+        Does the same process but with root finding objective instead of minimisation
     
     '''
     # Error Messages
@@ -397,7 +399,7 @@ def find_limit_cycle(ode_func,
         raise Exception("Initial period guess is less than step size.")
     
     # Establish lambda function for use with scipy.optimize.root, means we only vary params
-    objective_function = lambda params: limit_cycle_condition(ode_func=ode_func,
+    objective_function = lambda params: limit_cycle_condition_min(ode_func=ode_func,
                                                               num_loops_needed=num_loops_needed,
                                                               params = params,
                                                               phase_condition=phase_condition,
