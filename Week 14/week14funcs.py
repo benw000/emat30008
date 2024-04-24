@@ -3,6 +3,8 @@
 # Used in week14.ipynb
 # Author: Ben Winstanley, yy23737@bristol.ac.uk
 
+# SEE odefunctions.py FOR UPDATED VERSIONS OF FUNCTIONS
+
 # Imports
 import numpy as np
 
@@ -141,7 +143,4 @@ def solve_to(f, x_init: np.ndarray, t_init: float, t_final: float, deltat_max: f
     else:
         raise Exception("Not a valid method, please enter 'Euler','RK4' or 'RK2 ")
 
-
-            
-
-        
+# SEE odefunctions.py FOR UPDATED VERSIONS OF FUNCTIONS
