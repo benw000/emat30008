@@ -11,32 +11,35 @@ from typing import Literal
 # Week 14
 def euler_step(ode_func,
                x: np.ndarray, 
-               t: float, 
+               t: float,
+               params: list[float], 
                h: float) -> np.ndarray:
-    '''Perform single Euler step from `x` with step size `h` for the ODE `x' = ode_func(x,t)`. '''
-    x_next = x + h*ode_func(x,t)
+    '''Perform single Euler step from `x` with step size `h` for the ODE `x' = ode_func(x,t,params)`. '''
+    x_next = x + h*ode_func(x,t,params)
     return x_next
 
 def rk4_step(ode_func, 
              x: np.ndarray, 
-             t: float, 
+             t: float,
+             params: list[float], 
              h: float) -> np.ndarray:
-    '''Perform single RK4 step from `x` with step size `h` for the ODE `x' = ode_func(x,t)`. '''
-    k1 = ode_func(x,t)
-    k2 = ode_func((x+(h/2)*k1),(t+h/2))
-    k3 = ode_func((x+(h/2)*k2),(t+h/2))
-    k4 = ode_func((x+h*k3),(t+h))
+    '''Perform single RK4 step from `x` with step size `h` for the ODE `x' = ode_func(x,t,params)`. '''
+    k1 = ode_func(x,t,params)
+    k2 = ode_func((x+(h/2)*k1),(t+h/2),params)
+    k3 = ode_func((x+(h/2)*k2),(t+h/2),params)
+    k4 = ode_func((x+h*k3),(t+h),params)
 
     x_next = x + (h/6)*(k1 + 2*k2 + 2*k3 + k4)
     return x_next
 
 def rk2_step(ode_func, 
              x: np.ndarray, 
-             t: float, 
+             t: float,
+             params: list[float],
              h: float) -> np.ndarray:
-    '''Perform single RK2 step from `x` with step size `h` for the ODE `x' = ode_func(x,t)`. '''
-    k1 = ode_func(x,t)
-    k2 = ode_func((x+(h/2)*k1),(t+h/2))
+    '''Perform single RK2 step from `x` with step size `h` for the ODE `x' = ode_func(x,t,params)`. '''
+    k1 = ode_func(x,t,params)
+    k2 = ode_func((x+(h/2)*k1),(t+h/2),params)
 
     x_next = x + h*k2
     return x_next
