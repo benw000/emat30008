@@ -62,6 +62,8 @@ def solve_to(ode_func,
     -----
     ode_func : function
         Definition function for the RHS of the ODE `x' = ode_func(params,x,t)`.
+    params : list of floats
+        Parameters passed into the ODE function `ode_func`.
     x_init : 1-D Numpy array of floats
         Initial condition for the ODE, `x(t_init)=x_init`.
     t_init, t_final : floats
@@ -186,7 +188,8 @@ def solve_to(ode_func,
     
 # Week 15
 def limit_cycle_condition(ode_func,
-                          params: np.ndarray, 
+                          params: list[float],
+                          pair: np.ndarray, 
                           num_loops_needed: int = 10,
                           phase_condition: Literal['constant', 'derivative']='derivative',
                           constant_value: float = None,
@@ -201,7 +204,9 @@ def limit_cycle_condition(ode_func,
     -----
     ode_func : function
         Definition function for the RHS of the ODE.
-    params : 1-D Numpy array of floats
+    params : list of floats
+        Parameters passed into the ODE function `ode_func`.
+    pair : 1-D Numpy array of floats
         In format `[T, u0]`. Here `T` (float) is the period of the limit cycle, and `u0`
          (array of floats) is the initial point along the limit cycle.
     num_loops_needed : int, default 10
@@ -273,7 +278,7 @@ def limit_cycle_condition(ode_func,
         raise Exception("Error: Please supply a starting value that the first state variable must attain")
 
     # Extract T, u0 from params
-    T, u0 = params[0], params[1:]
+    T, u0 = pair[0], pair[1:]
 
     if T < 2*deltat_max:
         raise Exception("Please choose a different initial period guess, period tested has become smaller than timestep used")
@@ -285,7 +290,7 @@ def limit_cycle_condition(ode_func,
     # Loop over number of loops checked
     for i in range(num_loops_needed):
         # Compute G by calling the solver to solve until time (i+1)*T. Solve with RK4 and deltat_max supplied
-        solution = solve_to(f=ode_func, x_init=u0, t_init=0, 
+        solution = solve_to(ode_func=ode_func, params=params, x_init=u0, t_init=0, 
                             t_final=(i+1)*T, deltat_max=deltat_max, method='RK4')
         uT = solution[-1,1:]
         G = u0 - uT
@@ -297,12 +302,13 @@ def limit_cycle_condition(ode_func,
         phi = u0[0] - constant_value
     elif phase_condition == 'derivative':
         # Compute derivative of first state variable at time t=0
-        u0dot = ode_func(u0, 0)
+        u0dot = ode_func(params,u0, 0)
         phi = u0dot[0]
 
     return np.append(G_collection,[phi])
 
 def find_limit_cycle(ode_func, 
+                     params: list[float],
                      init_point_guess: np.ndarray,
                      init_period_guess: float,
                      num_loops_needed: int = 1,
@@ -311,48 +317,96 @@ def find_limit_cycle(ode_func,
                      deltat_max: float = 0.1,
                      print_findings: bool = True):
     '''
+    Searches for a limit cycle of an ODE given an initial guess.
+
     Takes in an ODE definition function, and an initial guess for the period and starting state
     of a limit cycle of that ODE. Uses scipy.optimize.root with limit_cycle_condition to converge
     towards a limit cycle starting with the supplied guess. If convergence is successful, returns
     the period and starting state of the limit cycle it located.
-    --------------
-    INPUTS
-    ode_func: Definition function for the RHS of the ODE at position x, time t
 
-    init_point_guess: 1-D Numpy array, initial guess for the starting state of a limit cycle
+    -----
+    Parameters
+    -----
+    ode_func : function
+        Definition function for the RHS of the ODE `x' = ode_func(x,t)`.
+    params : list of floats
+        Parameters passed into the ODE function `ode_func`.
+    init_point_guess : 1-D Numpy array
+        Initial guess for the starting state of a limit cycle.
+    init_period_guess : float
+        Initial guess for the period of the limit cycle.
+    phase_condition : 'constant' or 'derivative' 
+        Specifies the type of phase condition used
+         to select a distinct limit cycle, methods specified below.
+    constant_value : float
+        Value that the first state variable of `u0` should have. Must be supplied
+         if phase_condition == 'constant'.
+    deltat_max : float
+        Step size used by solve_to numerical ODE solver to compute the solution of the  
+         supplied ODE starting from `u0`.
+    print_findings: bool
+        If True then this function prints out whether the convergence was
+         successful, and if so the period and starting state of the limit cycle.
 
-    init_period_guess: Float, initial guess for the period of the limit cycle
+    ------
+    Returns
+    ------
+    If scipy.optimize.root converges:
+        best_period : float
+            The period of the found limit cycle.
+        best_point : 1-D Numpy array of floats
+            The starting state of the found limit cycle.
+    Else:
+        `None`.
 
-    phase_condition: String, either be 'constant' or 'derivative'
+    -----
+    Example
+    -----
+    >>> import numpy as np
+    >>> def shm(params, x, t):
+            return np.array(([x[1], -x[0]]))
+    >>> find_limit_cycle_min(shm, None, np.array(([5,1])), 10, 1, 'constant', 4)
+    A limit cycle was found:
+    Period: 12.566370606193304 ,
+    Starting state: [4.00000009 0.44653776] .
 
-    constant_value: Float value that the first state variable should start from. Must be supplied
-    if phase_condition == 'constant'
+    (12.566370606193304, array([4.00000009, 0.44653776]))
 
-    deltat_max: Float value step size used by solve_to solver to compute the solution after time T
+    -----
+    Notes
+    -----
+    We minimize the objective function specified in limit_cycle_condition_min, and specify bounds
+    so that the solver doesn't try periods that are lower than deltat_max.
 
-    print_findings: Boolean value, if True then this function prints out if the convergence was
-    successful, and if so the period and starting state of the limit cycle
+    -----
+    Raises
+    -----
+    Exception
+        If init_period_guess <= deltat_max.
 
-    RETURNS
-    if convergence:
-        best_period: float, the period of the found limit cycle
-        best_point: float, the starting state of the found limit cycle
-    else:
-        None
+    -----
+    See also
+    -----
+    limit_cycle_condition
+        Describes the function we find the root of to find limit cycles.
+    find_limit_cycle_min
+        Does the same process but with a minimization objective function instead of root finding
+    
     '''
     # Establish lambda function for use with scipy.optimize.root, means we only vary params
-    specific_condition = lambda params: limit_cycle_condition(ode_func=ode_func,
+    specific_condition = lambda pair: limit_cycle_condition(ode_func=ode_func,
+                                                            params=params,
+                                                              pair = pair,
                                                               num_loops_needed=num_loops_needed,
-                                                              params = params,
                                                               phase_condition=phase_condition,
                                                               constant_value=constant_value,
                                                               deltat_max=deltat_max)
 
 
-    # Pack init_point_guess and init_period_guess into params
-    init_params = np.concatenate(([init_period_guess], init_point_guess))
+    # Pack init_point_guess and init_period_guess into init_pair
+    init_pair = np.concatenate(([init_period_guess], init_point_guess))
 
-    result = root(specific_condition, init_params, method='lm')
+    result = root(specific_condition, init_pair, method='lm')
 
     if result.success:
         best_period, best_point = result.x[0], result.x[1:]
@@ -370,11 +424,12 @@ def find_limit_cycle(ode_func,
 
 # Week 16
 def limit_cycle_condition_min(ode_func,
-                          params: np.ndarray, 
-                          num_loops_needed: int = 10,
-                          phase_condition: Literal['constant', 'derivative']='derivative',
-                          constant_value: float = None,
-                          deltat_max: float = 0.01):
+                              params: list[float],
+                              pair: np.ndarray, 
+                              num_loops_needed: int = 10,
+                              phase_condition: Literal['constant', 'derivative']='derivative',
+                              constant_value: float = None,
+                              deltat_max: float = 0.01):
     ''' 
     Computes the value of an objective function used to search for limit cycle solutions of ODEs.
 
@@ -385,7 +440,9 @@ def limit_cycle_condition_min(ode_func,
     -----
     ode_func : function
         Definition function for the RHS of the ODE `x' = ode_func(x,t)`.
-    params : 1-D Numpy array of floats
+    params : list of floats
+        Parameters passed into the ODE function `ode_func`.
+    pair : 1-D Numpy array of floats
         In format `[T, u0]`. Here `T` (float) is the period of the limit cycle, and `u0`
          (array of floats) is the initial point along the limit cycle.
     num_loops_needed : int, default 10
@@ -411,9 +468,9 @@ def limit_cycle_condition_min(ode_func,
     Example
     -----
     >>> import numpy as np
-    >>> def shm(x, t):
+    >>> def shm(params, x, t):
             return np.array(([x[1], -x[0]]))
-    >>> objective = limit_cycle_condition_min(shm, np.array(([1,3,3])), 10, 'constant', 2)
+    >>> objective = limit_cycle_condition_min(shm, None, np.array(([1,3,3])), 10, 'constant', 2)
     >>> print(objective)
     30.551415942882745
 
@@ -466,7 +523,7 @@ def limit_cycle_condition_min(ode_func,
         raise Exception("Input Error: Please supply a starting value that the first state variable must attain.")
 
     # Extract T, u0 from params
-    T, u0 = params[0], params[1:]
+    T, u0 = pair[0], pair[1:]
 
     # Establish empty array to hold Gs
     num_variables = len(u0)
@@ -475,7 +532,7 @@ def limit_cycle_condition_min(ode_func,
     # Loop over number of loops checked
     for i in range(num_loops_needed):
         # Compute G by calling the solver to solve until time (i+1)*T. Solve with RK4 and deltat_max supplied
-        solution = solve_to(ode_func=ode_func, x_init=u0, t_init=0, 
+        solution = solve_to(ode_func=ode_func, params=params, x_init=u0, t_init=0, 
                             t_final=(i+1)*T, deltat_max=deltat_max, method='RK4')
         uT = solution[-1,1:]
         G = u0 - uT
@@ -487,7 +544,7 @@ def limit_cycle_condition_min(ode_func,
         phi = u0[0] - constant_value
     elif phase_condition == 'derivative':
         # Compute derivative of first state variable at time t=0
-        u0dot = ode_func(u0, 0)
+        u0dot = ode_func(params, u0, 0)
         phi = u0dot[0]
 
     # Introduce a regularisation constant for the period in our objective function
@@ -498,7 +555,8 @@ def limit_cycle_condition_min(ode_func,
 
 
 
-def find_limit_cycle_min(ode_func, 
+def find_limit_cycle_min(ode_func,
+                     params: list[float],
                      init_point_guess: np.ndarray,
                      init_period_guess: float,
                      num_loops_needed: int = 1,
@@ -510,7 +568,7 @@ def find_limit_cycle_min(ode_func,
     Searches for a limit cycle of an ODE given an initial guess.
 
     Takes in an ODE definition function, and an initial guess for the period and starting state
-    of a limit cycle of that ODE. Uses scipy.optimize.root with limit_cycle_condition_min to converge
+    of a limit cycle of that ODE. Uses scipy.optimize.minimize with limit_cycle_condition_min to converge
     towards a limit cycle starting with the supplied guess. If convergence is successful, returns
     the period and starting state of the limit cycle it located.
 
@@ -519,6 +577,8 @@ def find_limit_cycle_min(ode_func,
     -----
     ode_func : function
         Definition function for the RHS of the ODE `x' = ode_func(x,t)`.
+    params : list of floats
+        Parameters passed into the ODE function `ode_func`.
     init_point_guess : 1-D Numpy array
         Initial guess for the starting state of a limit cycle.
     init_period_guess : float
@@ -586,22 +646,23 @@ def find_limit_cycle_min(ode_func,
         raise Exception("Initial period guess is less than step size.")
     
     # Establish lambda function for use with scipy.optimize.root, means we only vary params
-    objective_function = lambda params: limit_cycle_condition_min(ode_func=ode_func,
-                                                              num_loops_needed=num_loops_needed,
-                                                              params = params,
-                                                              phase_condition=phase_condition,
-                                                              constant_value=constant_value,
-                                                              deltat_max=deltat_max)
+    objective_function = lambda pair: limit_cycle_condition_min(ode_func=ode_func,
+                                                                params=params,
+                                                                pair=pair,
+                                                                num_loops_needed=num_loops_needed,
+                                                                phase_condition=phase_condition,
+                                                                constant_value=constant_value,
+                                                                deltat_max=deltat_max)
 
 
-    # Pack init_point_guess and init_period_guess into params
-    init_params = np.concatenate(([init_period_guess], init_point_guess))
+    # Pack init_point_guess and init_period_guess into init_pair
+    init_pair = np.concatenate(([init_period_guess], init_point_guess))
     
     # Specify lower bound for limit cycle period to be greater than 10*deltatmax
     bounds = [(10*deltat_max, None)] + [(None,None) for i in range(len(init_point_guess))]
 
     # Minimize the limit cycle objective function with above bounds and initial guess
-    result = minimize(fun=objective_function, x0=init_params, bounds=bounds)
+    result = minimize(fun=objective_function, x0=init_pair, bounds=bounds)
 
     # If objective function value too large we deem the result a failure
     # Note if the actual period is larger than 1/alpha in our objective function
