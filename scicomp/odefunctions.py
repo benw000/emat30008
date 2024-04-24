@@ -5,7 +5,7 @@
 
 # IMPORTS
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, root
 from typing import Literal
 
 # Week 14
