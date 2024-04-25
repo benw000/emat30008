@@ -190,7 +190,7 @@ def solve_to(ode_func,
 def limit_cycle_condition(ode_func,
                           params: list[float],
                           pair: np.ndarray, 
-                          num_loops_needed: int = 10,
+                          num_loops_needed: int = 1,
                           phase_condition: Literal['constant', 'derivative']='derivative',
                           constant_value: float = None,
                           deltat_max: float = 0.1):
@@ -209,16 +209,15 @@ def limit_cycle_condition(ode_func,
     pair : 1-D Numpy array of floats
         In format `[T, u0]`. Here `T` (float) is the period of the limit cycle, and `u0`
          (array of floats) is the initial point along the limit cycle.
-    num_loops_needed : int, default 10
-        Determines how many successive loops are checked to conclude the initial state
-         `u0` generates a limit cycle.
-    phase_condition : 'constant' or 'derivative' 
+    num_loops_needed : int, default 1
+        The number of consecutive periods checked by our limit_cycle_condition function
+    phase_condition : 'constant' or 'derivative', default 'derivative'
         Specifies the type of phase condition used
          to select a distinct limit cycle, methods specified below.
-    constant_value : float
+    constant_value : float, default None
         Value that the first state variable of `u0` should have. Must be supplied
          if phase_condition == 'constant'.
-    deltat_max : float
+    deltat_max : float, default 0.01
         Step size used by solve_to numerical ODE solver to compute the solution of the  
          supplied ODE starting from `u0`.
 
@@ -233,9 +232,9 @@ def limit_cycle_condition(ode_func,
     Example
     -----
     >>> import numpy as np
-    >>> def shm(x, t):
+    >>> def shm(params,x, t):
             return np.array(([x[1], -x[0]]))
-    >>> limit_cycle_condition(shm, np.array(([2*np.pi,1,0])), 5)
+    >>> limit_cycle_condition(shm, None, np.array(([2*np.pi,1,0])), 5)
     array([ 4.32329707e-07, -5.18133545e-06,  8.67617365e-07, -1.03901950e-05,
         1.30414748e-06, -1.56132187e-05,  1.74110099e-06, -2.08422900e-05,
         2.17816753e-06, -2.60732268e-05,  0.00000000e+00])
@@ -335,16 +334,18 @@ def find_limit_cycle(ode_func,
         Initial guess for the starting state of a limit cycle.
     init_period_guess : float
         Initial guess for the period of the limit cycle.
-    phase_condition : 'constant' or 'derivative' 
+    num_loops_needed : int, default 1
+        The number of consecutive periods checked by our limit_cycle_condition function
+    phase_condition : 'constant' or 'derivative', default 'derivative'
         Specifies the type of phase condition used
          to select a distinct limit cycle, methods specified below.
-    constant_value : float
+    constant_value : float, default None
         Value that the first state variable of `u0` should have. Must be supplied
          if phase_condition == 'constant'.
-    deltat_max : float
+    deltat_max : float, default 0.01
         Step size used by solve_to numerical ODE solver to compute the solution of the  
          supplied ODE starting from `u0`.
-    print_findings: bool
+    print_findings: bool, default True
         If True then this function prints out whether the convergence was
          successful, and if so the period and starting state of the limit cycle.
 
@@ -390,7 +391,7 @@ def find_limit_cycle(ode_func,
     limit_cycle_condition
         Describes the function we find the root of to find limit cycles.
     find_limit_cycle_min
-        Does the same process but with a minimization objective function instead of root finding
+        Does the same process but with a minimization objective function instead of root finding.
     
     '''
     # Establish lambda function for use with scipy.optimize.root, means we only vary params
@@ -412,8 +413,8 @@ def find_limit_cycle(ode_func,
         best_period, best_point = result.x[0], result.x[1:]
         if print_findings:
             print("A limit cycle was found:")
-            print("Period:", best_period, ",")
-            print("Starting state:", best_point, ".")
+            print("Period:", round(best_period,2), ",")
+            print("Starting state:", np.round(best_point,2), ".")
         return best_period, best_point
     else:
         if print_findings:
@@ -426,7 +427,7 @@ def find_limit_cycle(ode_func,
 def limit_cycle_condition_min(ode_func,
                               params: list[float],
                               pair: np.ndarray, 
-                              num_loops_needed: int = 10,
+                              num_loops_needed: int = 1,
                               phase_condition: Literal['constant', 'derivative']='derivative',
                               constant_value: float = None,
                               deltat_max: float = 0.01):
@@ -445,16 +446,15 @@ def limit_cycle_condition_min(ode_func,
     pair : 1-D Numpy array of floats
         In format `[T, u0]`. Here `T` (float) is the period of the limit cycle, and `u0`
          (array of floats) is the initial point along the limit cycle.
-    num_loops_needed : int, default 10
-        Determines how many successive loops are checked to conclude the initial state
-         `u0` generates a limit cycle.
-    phase_condition : 'constant' or 'derivative' 
+    num_loops_needed : int, default 1
+        The number of consecutive periods checked by our limit_cycle_condition function
+    phase_condition : 'constant' or 'derivative', default 'derivative'
         Specifies the type of phase condition used
          to select a distinct limit cycle, methods specified below.
-    constant_value : float
+    constant_value : float, default None
         Value that the first state variable of `u0` should have. Must be supplied
          if phase_condition == 'constant'.
-    deltat_max : float
+    deltat_max : float, default 0.01
         Step size used by solve_to numerical ODE solver to compute the solution of the  
          supplied ODE starting from `u0`.
 
@@ -583,16 +583,18 @@ def find_limit_cycle_min(ode_func,
         Initial guess for the starting state of a limit cycle.
     init_period_guess : float
         Initial guess for the period of the limit cycle.
-    phase_condition : 'constant' or 'derivative' 
+    num_loops_needed : int, default 1
+        The number of consecutive periods checked by our limit_cycle_condition function
+    phase_condition : 'constant' or 'derivative', default 'derivative'
         Specifies the type of phase condition used
          to select a distinct limit cycle, methods specified below.
-    constant_value : float
+    constant_value : float, default None
         Value that the first state variable of `u0` should have. Must be supplied
          if phase_condition == 'constant'.
-    deltat_max : float
+    deltat_max : float, default 0.01
         Step size used by solve_to numerical ODE solver to compute the solution of the  
          supplied ODE starting from `u0`.
-    print_findings: bool
+    print_findings: bool, default True
         If True then this function prints out whether the convergence was
          successful, and if so the period and starting state of the limit cycle.
 
@@ -684,6 +686,220 @@ def find_limit_cycle_min(ode_func,
             print("No limit cycle was found (failed to converge).")
         return None, None
             
+
+# Week 17
+def limit_cycle_continuation(ode_func,
+                             default_params: list[float],
+                             vary_param_index: int,
+                             vary_param_start: float,
+                             vary_param_step: float,
+                             init_point_guess: np.ndarray,
+                             init_period_guess: float,
+                             num_steps: int,
+                             method: Literal['NPC','PAC']='NPC',
+                             num_loops_needed: int = 1,
+                             phase_condition: Literal['constant', 'derivative']='derivative',
+                             constant_value: float = None,
+                             deltat_max: float = 0.1
+                             ):
+    '''  
+    Searches for a limit cycle of an ODE given an initial guess.
+
+    Takes in an ODE definition function, and an initial guess for the period and starting state
+    of a limit cycle of that ODE. At each step uses scipy.optimize.root with limit_cycle_condition
+    to converge towards a limit cycle, starting with the supplied guess. 
+
+    -----
+    Parameters
+    -----
+    ode_func : function
+        Definition function for the RHS of the ODE `x' = ode_func(x,t)`.
+    default_params : list of floats
+        Default set of parameters passed into the ODE function `ode_func`.
+    vary_param_index : int,
+        The index of the parameter to be varied within default_params.
+    vary_param_start : float,
+        The starting parameter value of the varied parameter.
+    vary_param_step : float,
+        The size of change in parameter value used by natural-parameter continuation
+         and initially in pseudo-arclength continuation.
+    init_point_guess : 1-D Numpy array
+        Initial guess for the starting state of a limit cycle.
+    init_period_guess : float
+        Initial guess for the period of the limit cycle.
+    num_steps : int,
+        The number of steps to conduct in the continuation
+    method : 'NPC' or 'PAC', default 'NPC'
+        Numerical continuation method, either natural-parameter continuation (NPC),
+         or pseudo-arclength continuation (PAC)
+    num_loops_needed : int, default 1
+        The number of consecutive periods checked by our limit_cycle_condition function
+    phase_condition : 'constant' or 'derivative', default 'derivative'
+        Specifies the type of phase condition used
+         to select a distinct limit cycle, methods specified below.
+    constant_value : float, default None
+        Value that the first state variable of `u0` should have. Must be supplied
+         if phase_condition == 'constant'.
+    deltat_max : float, default 0.01
+        Step size used by solve_to numerical ODE solver to compute the solution of the  
+         supplied ODE starting from `u0`.
+
+    ------
+    Returns
+    ------
+    x_store : 2-D NumPy array,
+        Contains the pairs [Period, Starting Point] for each parameter value tried
+    c_store : 1-D NumPy array
+        Contains the corresponding parameter values for each pair
+
+    -----
+    Example
+    -----
+    >>> import numpy as np
+    >>> def predator_prey(params, x: np.ndarray, t: float):
+            a,d,b = params
+            dxdt = x[0]*(1-x[0]) - (a*x[0]*x[1])/(d+x[0])
+            dydt = b*x[1]*(1-(x[1]/x[0]))
+            return np.array((dxdt, dydt))
+    >>> pair_store, b_store = limit_cycle_continuation(predator_prey,
+                                               [1,0.1,0.1], 2, 0.1, 0.01,
+                                               np.array(([0.8,0.2])),
+                                               30, 20, method='NPC')
+    >>> print(b_store)
+    [0.1, 0.11, 0.12, 0.13, 0.14, 0.15000000000000002, ... ,0.1663615 ]
+    >>> print(pair_store)
+    [[31.60389551  0.79912268  0.18061336]
+    [29.55628338  0.77832994  0.19469945]
+    ...
+    [17.92644331  0.27015621  0.27015621]
+    [17.92644331  0.27015621  0.27015621]]
+    
+    -----
+    Raises
+    -----
+    Exception
+        If init_period_guess <= deltat_max.
+    Exception
+        If vary_param_index >= size(default_params)
+
+    -----
+    See also
+    -----
+    limit_cycle_condition
+        Describes the function we find the root of to find limit cycles.
+    find_limit_cycle
+        Finds a single limit cycle for a fixed set of parameters
+    
+    '''
+    if init_period_guess <= deltat_max:
+        raise Exception("Initial guess period is smaller than stepsize")
+    if vary_param_index > len(default_params)-1:
+        raise Exception("vary_param_index supplied is too large")
+    
+    # Define an inner function that packages information, only taking pair and params as inputs
+    def packing_function(vary_param_val: float, pair: np.ndarray):
+        
+        # Update params list to have the current vary_param value
+        params = default_params
+        params[vary_param_index] = vary_param_val
+
+        return limit_cycle_condition(ode_func=ode_func,
+                                    params = params,
+                                    pair = pair,
+                                    num_loops_needed=num_loops_needed,
+                                    phase_condition=phase_condition,
+                                    constant_value=constant_value,
+                                    deltat_max=deltat_max)
+    
+    
+    # We now refer to our pairs as 'x' and varied parameter as c, for brevity
+
+    # Pack init_point_guess and init_period_guess into x0guess, rename vary_param_start
+    x0guess = np.concatenate(([init_period_guess], init_point_guess))
+    c0 = vary_param_start
+
+    # Define specific_condition which only takes the pair x as input
+    specific_condition = lambda x: packing_function(c0, x)
+
+    # Solve for the first point of the continuation x0 using our starting guess
+    x0 = root(specific_condition, x0guess).x
+
+    # Update c by vary_param_step, 
+    # Find our second point x1 via natural parameter continuation
+    c1 = c0 + vary_param_step
+    specific_condition = lambda x: packing_function(c1, x)
+    x1 = root(specific_condition, x0).x
+
+    if method == 'NPC':
+        # Construct stores
+        x_store = np.vstack((x0,x1))
+        c_store = [c0,c1]
+        x_current = x1
+        c_current = c1
+        
+        # Loop over number of steps
+        for i in range(num_steps-1):
+            # Update c by parameter step
+            c_next = c_current + vary_param_step
+
+            # Fix the objective function and find the next solution
+            specific_condition = lambda x: packing_function(c_next, x)
+
+            # Try the next step of continuation
+            try:
+                x_next = root(specific_condition, x_current).x
+            except:
+                print("Numerical divergence encountered, terminating continuation")
+                continue
+                
+            # Update stores and then current values
+            x_store = np.vstack((x_store, x_next))
+            c_store += [c_next]
+            x_current = x_next
+            c_current = c_next
+
+    elif method == 'PAC':
+        # Construct v0 and v1 vectors
+        v0 = np.concatenate(([c0],x0))
+        v1 = np.concatenate(([c1],x1))
+
+        # Construct stores
+        v_store = np.stack((v0, v1))
+        v_last = v0
+        v_current = v1
+
+        # Define objective function used for root finding in each step
+        def psa_objective(v: np.ndarray, v_next_guess: np.ndarray, secant: np.ndarray):
+            original = packing_function(v[0], v[1:])
+            pseudo_arclength_eq = np.dot((v - v_next_guess),secant)
+            return np.concatenate((original, [pseudo_arclength_eq]))
+        
+        # Conduct num_steps many steps of pseudo-arclength continuation
+        for i in range(num_steps-1):
+            # Calculate secant and next guess
+            secant = v_current - v_last
+            v_next_guess = v_current + secant
+
+            # Define current objective function and find its root for v_next
+            current_objective = lambda v: psa_objective(v, v_next_guess, secant)
+
+            # Try the next step of continuation
+            try:
+                v_next = root(current_objective, v_next_guess).x
+            except:
+                print("Numerical divergence encountered, terminating continuation")
+                continue
+
+            # Update
+            v_store = np.vstack((v_store, v_next))
+            v_last = v_current
+            v_current = v_next
+        
+        # Unpack v_store into x and c
+        c_store, x_store = v_store[:,0], v_store[:,1:]
+
+    return x_store, c_store
+
 
 # Week 19,20
 def bvp_construct_A_and_b(num_grid_points: int,
@@ -793,13 +1009,13 @@ def bvp_construct_A_and_b(num_grid_points: int,
     a, b = grid_bounds
 
     # Establish delta_x
-    delta_x = (b-a)/N
+    delta_x = (b-a)/(N-1)
 
     # Initiate holders for dirichlet boundary conditions
     left_dirichlet_val, right_dirichlet_val = None, None
 
     # Calculate number of interior grid points based on boundary conditions
-    N_interior = N-1
+    N_interior = N-2
     if left_boundary_type != 'Dirichlet':
         N_interior += 1  # Include additional ghost point (on left)
     else:
@@ -952,8 +1168,8 @@ def finite_diff_bvp_solver(num_grid_points: int,
     a, b = grid_bounds
 
     # Establish x grid
-    x_vals = np.linspace(a,b,N+1)
-    delta_x = (b-a)/N
+    x_vals = np.linspace(a,b,N)
+    delta_x = (b-a)/(N-1)
 
     # Extract interior values
     x_vals_interior = x_vals
