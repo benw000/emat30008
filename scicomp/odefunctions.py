@@ -1355,11 +1355,11 @@ def diffusion_pde_solver(num_grid_points: int,
     # Pack the remaining dirichlet boundaries on to the ends
     if left_dirichlet_val != None:
         n_timesteps, _ = np.shape(store)
-        left_vals = np.ones([n_timesteps,1])
+        left_vals = left_dirichlet_val*np.ones([n_timesteps,1])
         store = np.concatenate((np.array([store[:,0]]).T,left_vals, store[:,1:]), axis=1)
     if right_dirichlet_val != None:
         n_timesteps, _ = np.shape(store)
-        right_vals = np.ones([n_timesteps,1])
+        right_vals = right_dirichlet_val*np.ones([n_timesteps,1])
         store = np.concatenate((store,right_vals), axis=1)
 
     return store, x_vals
