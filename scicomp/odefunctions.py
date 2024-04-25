@@ -1236,3 +1236,130 @@ def finite_diff_bvp_solver(num_grid_points: int,
         u_interior = np.concatenate((u_interior, [left_dirichlet_val]))
     
     return u_interior, x_vals
+
+def diffusion_pde_solver(num_grid_points: int,
+                          grid_bounds: list[float],
+                          diffusivity: float,
+                          init_func,
+                          t_init: float,
+                          t_final: float,
+                          deltat_max: float,
+                          left_boundary_vals: list[float],
+                          right_boundary_vals: list[float],
+                          left_boundary_type: Literal['Dirichlet', 'Neumann', 'Robin'] = 'Dirichlet', 
+                          right_boundary_type: Literal['Dirichlet', 'Neumann', 'Robin'] = 'Dirichlet',
+                          q_func = None,
+                          method: Literal['Explicit Euler'] = 'Explicit Euler'):
+    '''  
+    Solves 1-D diffusion PDEs with the method of lines, using different timestepping methods.
+
+    -----
+    Parameters
+    -----
+    num_grid_points : int
+        The number of spatial x grid points used in the numerical approximation.
+    grid_bounds : [a,b] where a<b are floats
+        The bounds a<=x<=b of the problem.
+    diffusivity : float
+        The diffusivity constant of the system. Higher means more 'flattening'.
+    init_func : function
+        The initial spatial condition function u(x,0)
+    t_init, t_final : floats
+        Initial and final times.
+    deltat_max : float
+        Step size used in numerical timestepping, some final steps may be smaller than this.
+    left_boundary_vals : [alpha, beta] where alpha,beta are floats
+        The constant values used to describe the left boundary condition. Beta optional, used for Robin boundary
+    right_boundary_vals : [alpha, beta] where alpha,beta are floats
+        The constant values used to describe the left boundary condition. Beta optional, used for Robin boundary
+    left_boundary_type : 'Dirichlet', 'Neumann', or 'Robin', default 'Dirichlet'
+        The string used to specify the type of boundary condition on the left.
+    right_boundary_type : 'Dirichlet', 'Neumann', or 'Robin', default 'Dirichlet'
+        The string used to specify the type of boundary condition on the right.
+    q_func : function
+        The source function used in the PDE. Has to be of the form q=q(x)
+    method : 'Explicit Euler'
+        The type of timestepping method used to simulate the PDE
+    
+    ------
+    Returns
+    ------
+    2-D Numpy array
+        Full timeseries solution of PDE from t_init to t_final.
+        Columns `[t, u1(t), u2(t), ... ,un(t)]`, with each row containing the time value after a timestep
+        and the values of each state variable in `u=[u1, u2, ... ,un]`.
+
+    -----
+    Example
+    -----
+    >>> import numpy as np
+    >>> store, xvals  = diffusion_pde_solver(5, [0,5], 1, np.sin ,0,10,0.1,[2],[3])
+    >>> print(xvals)
+    [0.   1.25 2.5  3.75 5.  ]
+    >>> print(store)
+    [[ 0.          1.          0.94898462  0.59847214 -0.57156132  1.        ]
+    [ 0.1         1.          0.98973782  0.55942378 -0.28804692  1.        ]
+    [ 0.2         1.          1.02397787  0.54321024 -0.04021254  1.        ]
+    [ 0.3         1.          1.05369875  0.54479128  0.1774401   1.      
+    ....
+    [ 9.7         1.          2.20185124  2.43190158  2.70184305  1.        ]
+    [ 9.8         1.          2.20362259  2.43440734  2.70361538  1.        ]
+    [ 9.9         1.          2.20532881  2.43682091  2.70532247  1.        ]
+    [10.          1.          2.20697228  2.43914566  2.7069667   1.        ]]
+
+    -----
+    See also
+    -----
+    bvp_construct_A_and_b
+        Used inside this function to construct the matrix A and vector b.
+    '''
+    A_matrix, b_vec, left_dirichlet_val, right_dirichlet_val = bvp_construct_A_and_b(num_grid_points,
+                                                                                     grid_bounds,
+                                                                                     left_boundary_vals,
+                                                                                     right_boundary_vals,
+                                                                                     left_boundary_type,
+                                                                                     right_boundary_type)
+    
+    # Unpack and rename inputs
+    D = diffusivity
+    N = num_grid_points
+    a, b = grid_bounds
+
+    # Establish x grid
+    x_vals = np.linspace(a,b,N)
+    delta_x = (b-a)/(N-1)
+
+    # Extract interior values
+    x_vals_interior = x_vals
+    if left_dirichlet_val != None:
+        x_vals_interior = x_vals_interior[1:]
+    if right_dirichlet_val != None:
+        x_vals_interior = x_vals_interior[:-1]
+
+    # Determine initial conditions
+    init_dist = init_func(x_vals_interior)
+    
+    # Define a rhs function depending on q
+    if q_func == None:
+        def rhs_func(params,x,t):
+            return (D/(delta_x**2))*(np.matmul(A_matrix,x)+b_vec)
+
+    else:
+        def rhs_func(params,x,t):
+            return (D/(delta_x**2))*(np.matmul(A_matrix,x)+b_vec)+q_func(x)
+    
+    if method == 'Explicit Euler':
+        # Timestep via explicit Euler method:
+        store = solve_to(rhs_func,None,init_dist,t_init, t_final, deltat_max)
+
+    # Pack the remaining dirichlet boundaries on to the ends
+    if left_dirichlet_val != None:
+        n_timesteps, _ = np.shape(store)
+        left_vals = np.ones([n_timesteps,1])
+        store = np.concatenate((np.array([store[:,0]]).T,left_vals, store[:,1:]), axis=1)
+    if right_dirichlet_val != None:
+        n_timesteps, _ = np.shape(store)
+        right_vals = np.ones([n_timesteps,1])
+        store = np.concatenate((store,right_vals), axis=1)
+
+    return store, x_vals
