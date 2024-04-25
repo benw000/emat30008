@@ -1350,7 +1350,7 @@ def diffusion_pde_solver(num_grid_points: int,
     
     if method == 'Explicit Euler':
         # Timestep via explicit Euler method:
-        store = solve_to(rhs_func,None,init_dist,t_init, t_final, deltat_max)
+        store = solve_to(rhs_func,None,init_dist,t_init, t_final, deltat_max, 'Euler')
 
     # Pack the remaining dirichlet boundaries on to the ends
     if left_dirichlet_val != None:
